@@ -5,12 +5,17 @@ import Dashboard from './components/Dashboard';
 import ChatInterface from './components/ChatInterface';
 import CropDoctor from './components/CropDoctor';
 import MarketView from './components/MarketView';
+import AuthForm from './components/AuthForm';
+import UserAccount from './components/UserAccount';
+import supabaseAuth, { SupabaseAuthSession } from './services/supabaseAuth';
 import { WifiOff } from 'lucide-react';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>(ViewState.DASHBOARD);
   const [language, setLanguage] = useState<Language>('en');
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+  const [session, setSession] = useState<SupabaseAuthSession | null>(supabaseAuth.getSession());
+  const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -22,6 +27,26 @@ const App: React.FC = () => {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const unsubscribe = supabaseAuth.onAuthStateChange((nextSession) => {
+      if (isMounted) {
+        setSession(nextSession);
+      }
+    });
+
+    supabaseAuth.restoreSession().finally(() => {
+      if (isMounted) {
+        setIsAuthReady(true);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
     };
   }, []);
 
@@ -40,6 +65,18 @@ const App: React.FC = () => {
     }
   };
 
+  if (!isAuthReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+        <p className="text-sm text-stone-500 animate-pulse">Loading your account…</p>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <AuthForm />;
+  }
+
   return (
     <div className="max-w-md mx-auto bg-stone-50 min-h-screen relative shadow-2xl shadow-stone-300 font-sans">
       {!isOnline && (
@@ -48,6 +85,7 @@ const App: React.FC = () => {
           <span>Offline Mode - Using cached data</span>
         </div>
       )}
+      <UserAccount session={session} />
       <main className="h-full">
         {renderView()}
       </main>
