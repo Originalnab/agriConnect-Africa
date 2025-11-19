@@ -78,17 +78,26 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="max-w-md mx-auto bg-stone-50 min-h-screen relative shadow-2xl shadow-stone-300 font-sans">
+    <div className="max-w-md mx-auto bg-stone-50 min-h-screen relative shadow-2xl shadow-stone-300 font-sans flex flex-col">
+      {/* Header with Offline Indicator */}
       {!isOnline && (
         <div className="bg-stone-800 text-white text-xs py-1 px-4 text-center flex items-center justify-center sticky top-0 z-50">
           <WifiOff size={12} className="mr-2" />
           <span>Offline Mode - Using cached data</span>
         </div>
       )}
-      <UserAccount session={session} />
-      <main className="h-full">
+
+      {/* Top Bar with User Account */}
+      <div className="bg-white border-b border-stone-200 px-4 py-3 flex items-center justify-end">
+        <UserAccount />
+      </div>
+
+      {/* Main Content */}
+      <main className="flex-1 overflow-auto">
         {renderView()}
       </main>
+
+      {/* Navigation */}
       <Navigation currentView={currentView} setView={setCurrentView} language={language} />
     </div>
   );
