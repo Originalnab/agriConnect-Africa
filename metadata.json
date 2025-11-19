@@ -1,0 +1,9 @@
+{
+  "name": "AgriConnect Africa",
+  "description": "An AI-powered companion for farmers in Ghana and Africa, providing crop diagnosis, market insights, and intelligent farming advice.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
