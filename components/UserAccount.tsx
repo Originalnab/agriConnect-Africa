@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LogOut, Settings, User, ChevronDown } from 'lucide-react';
 import supabaseAuth, { SupabaseAuthSession } from '../services/supabaseAuth';
+import { supabase } from '../services/supabaseClient';
 
 const UserAccount: React.FC = () => {
   const [session, setSession] = useState<SupabaseAuthSession | null>(null);
@@ -9,11 +10,13 @@ const UserAccount: React.FC = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Get initial session
-    const initialSession = supabaseAuth.getSession();
-    setSession(initialSession);
+    const initializeSession = async () => {
+      const session = await supabaseAuth.getSession();
+      setSession(session);
+    };
 
-    // Subscribe to auth state changes
+    initializeSession();
+
     const unsubscribe = supabaseAuth.onAuthStateChange((newSession) => {
       setSession(newSession);
     });
@@ -25,11 +28,25 @@ const UserAccount: React.FC = () => {
     setSigningOut(true);
     try {
       await supabaseAuth.signOut();
-      setSession(null);
-      setIsOpen(false);
-    } finally {
-      setSigningOut(false);
+    } catch (error) {
+      console.warn('Failed to sign out via supabaseAuth', error);
     }
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.warn('Failed to sign out via supabase client', error);
+    }
+    try {
+      Object.keys(window.localStorage)
+        .filter((key) => key.startsWith('sb-'))
+        .forEach((key) => window.localStorage.removeItem(key));
+    } catch (error) {
+      console.warn('Failed to clear cached Supabase sessions', error);
+    }
+    setSession(null);
+    setIsOpen(false);
+    setSigningOut(false);
+    window.location.replace('/');
   };
 
   // Close dropdown when clicking outside

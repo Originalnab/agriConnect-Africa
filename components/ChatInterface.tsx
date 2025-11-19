@@ -350,7 +350,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ language, isOnline }) => 
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="bg-white p-3 border-t border-gray-200 fixed bottom-16 left-0 right-0 w-full max-w-md mx-auto md:static md:w-full">
+      <div className="bg-white p-3 border-t border-gray-200 sticky bottom-0 z-30 shadow-lg">
         <div className={`flex items-center space-x-2 rounded-full px-3 py-2 ${isOnline ? 'bg-gray-100' : 'bg-gray-200'}`}>
           <input
             type="text"

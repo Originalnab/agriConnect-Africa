@@ -1,3 +1,5 @@
+import { supabase } from './supabaseClient';
+
 export interface SupabaseUserMetadata {
   country?: string;
   [key: string]: unknown;
@@ -116,6 +118,7 @@ const captureOAuthSessionFromUrl = () => {
   const session = parseSession(payload);
   if (session) {
     persistSession(session);
+    void syncSupabaseClientSession(session);
     notify(session);
     void hydrateSessionUser(session);
   }
@@ -185,6 +188,14 @@ const notify = (session: SupabaseAuthSession | null) => {
   listeners.forEach((listener) => listener(session));
 };
 
+const syncSupabaseClientSession = async (session: SupabaseAuthSession | null) => {
+  if (!session) return;
+  await supabase.auth.setSession({
+    access_token: session.access_token,
+    refresh_token: session.refresh_token,
+  });
+};
+
 const sessionIsValid = (session: SupabaseAuthSession | null) => {
   if (!session) return false;
   return session.expires_at * 1000 > Date.now() + 1000; // add small buffer
@@ -205,6 +216,7 @@ const refreshWithToken = async (refreshToken?: string) => {
   const session = parseSession(data);
   if (session) {
     persistSession(session);
+    await syncSupabaseClientSession(session);
     notify(session);
     return hydrateSessionUser(session);
   }
@@ -212,8 +224,8 @@ const refreshWithToken = async (refreshToken?: string) => {
 };
 
 const supabaseAuth = {
-  getSession(): SupabaseAuthSession | null {
-    if (currentSession) return currentSession;
+  async getSession(): Promise<SupabaseAuthSession | null> {
+    if (currentSession && sessionIsValid(currentSession)) return currentSession;
     const oauthSession = captureOAuthSessionFromUrl();
     if (oauthSession) {
       currentSession = oauthSession;
@@ -221,15 +233,15 @@ const supabaseAuth = {
     }
     const stored = readStoredSession();
     if (stored) {
-      currentSession = stored;
-      void hydrateSessionUser(stored);
+      currentSession = await this.restoreSession();
     }
     return currentSession;
   },
   async restoreSession() {
-    const stored = this.getSession();
+    const stored = readStoredSession();
     if (sessionIsValid(stored)) {
       notify(stored);
+      await syncSupabaseClientSession(stored);
       return hydrateSessionUser(stored);
     }
     try {
@@ -261,6 +273,7 @@ const supabaseAuth = {
       throw new Error('No session returned from Supabase.');
     }
     persistSession(session);
+    await syncSupabaseClientSession(session);
     notify(session);
     return hydrateSessionUser(session);
   },
@@ -280,6 +293,7 @@ const supabaseAuth = {
     let hydratedSession = session;
     if (session) {
       persistSession(session);
+      await syncSupabaseClientSession(session);
       notify(session);
       hydratedSession = await hydrateSessionUser(session);
     }
@@ -303,7 +317,7 @@ const supabaseAuth = {
   },
   async signOut() {
     const { url } = ensureEnv();
-    const session = this.getSession();
+    const session = await this.getSession();
     if (session) {
       try {
         await fetch(`${url}/auth/v1/logout`, {
@@ -315,6 +329,7 @@ const supabaseAuth = {
       }
     }
     persistSession(null);
+    await supabase.auth.signOut();
     notify(null);
   },
   onAuthStateChange(callback: AuthStateListener) {

@@ -24,7 +24,7 @@ const TwoFactorVerification: React.FC<TwoFactorVerificationProps> = ({
     // Send initial verification code
     useEffect(() => {
         const sendCode = async () => {
-            const result = await sendVerificationEmail(email);
+            const result = await sendVerificationEmail();
             if (result.success) {
                 setMessage(result.message);
             } else {
@@ -34,7 +34,7 @@ const TwoFactorVerification: React.FC<TwoFactorVerificationProps> = ({
         };
 
         sendCode();
-    }, [email]);
+    }, []);
 
     // Countdown timer
     useEffect(() => {
@@ -65,7 +65,7 @@ const TwoFactorVerification: React.FC<TwoFactorVerificationProps> = ({
         }
 
         try {
-            const result = await verifyCode(email, code);
+            const result = await verifyCode(code);
 
             if (result.verified) {
                 setMessage('✅ Email verified successfully!');
@@ -86,7 +86,7 @@ const TwoFactorVerification: React.FC<TwoFactorVerificationProps> = ({
         setError(null);
         setMessage(null);
 
-        const result = await resendVerificationCode(email);
+        const result = await resendVerificationCode();
 
         if (result.success) {
             setMessage(result.message);

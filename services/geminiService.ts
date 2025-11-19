@@ -2,7 +2,11 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Language, WeatherData, NewsResponse, PlantingResponse, PestForecast, CropInfo, AnalysisResult, RotationAdvice } from "../types";
 
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
+const apiKey =
+  ((import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_GEMINI_API_KEY ??
+    (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.GEMINI_API_KEY ??
+    (typeof process !== 'undefined' ? (process as any)?.env?.GEMINI_API_KEY : undefined) ??
+    '') || '';
 const ai = new GoogleGenAI({ apiKey });
 const CACHE_PREFIX = 'agri_connect_';
 

@@ -11,11 +11,17 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ language, setLanguage, isOnline }) => {
+  const geminiKey =
+    ((import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_GEMINI_API_KEY ??
+      (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.GEMINI_API_KEY ??
+      (typeof process !== 'undefined' ? (process as any)?.env?.GEMINI_API_KEY : undefined) ??
+      '') || undefined;
   const [loading, setLoading] = useState(true);
   const [updates, setUpdates] = useState<NewsResponse | null>(null);
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [pestData, setPestData] = useState<PestForecast | null>(null);
   const [showLangMenu, setShowLangMenu] = useState(false);
+  const [showFullInsights, setShowFullInsights] = useState(false);
   
   // Location State
   const [location, setLocation] = useState("Accra, Ghana");
@@ -36,6 +42,18 @@ const Dashboard: React.FC<DashboardProps> = ({ language, setLanguage, isOnline }
   // Fetch Data based on current location and language
   const fetchData = async (loc: string) => {
     setLoading(true);
+    if (!geminiKey) {
+      console.warn('Gemini API key missing. Set VITE_GEMINI_API_KEY to enable AI insights.');
+      setUpdates({
+        text: 'AI insights are unavailable because the Gemini API key is missing. Set VITE_GEMINI_API_KEY (or GEMINI_API_KEY) in your environment and reload.',
+        links: [],
+        fromCache: false,
+      });
+      setWeather(null);
+      setPestData(null);
+      setLoading(false);
+      return;
+    }
     try {
       // Fetch weather first to feed into pest forecast
       const weatherData = await getWeatherForecast(loc, language);
@@ -51,7 +69,19 @@ const Dashboard: React.FC<DashboardProps> = ({ language, setLanguage, isOnline }
       setPestData(pestRes);
     } catch (e) {
       console.error("Error fetching dashboard data:", e);
-      // Data might remain null if completely offline and no cache
+      if (!navigator.onLine) {
+        setUpdates({
+          text: 'Live insights are unavailable while offline. Reconnect to refresh AI content.',
+          links: [],
+          fromCache: true,
+        });
+      } else {
+        setUpdates({
+          text: 'Live insights are temporarily unavailable. Please check your connection or API credentials and try again.',
+          links: [],
+          fromCache: false,
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -370,29 +400,59 @@ const Dashboard: React.FC<DashboardProps> = ({ language, setLanguage, isOnline }
           </div>
         ) : (
           <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-             <div className="prose prose-green prose-sm max-w-none">
-                {updates?.text ? updates.text.split('\n').map((paragraph, idx) => (
-                  paragraph.trim() && <p key={idx} className="text-gray-700 mb-2 leading-relaxed">{paragraph.replace(/\*/g, '')}</p>
-                )) : (
-                  <p className="text-gray-500 italic">Content unavailable offline.</p>
-                )}
-             </div>
-             
-             {updates?.links && updates.links.length > 0 && (
-               <div className="mt-4 pt-4 border-t border-gray-100">
-                 <h4 className="text-xs font-bold text-gray-400 uppercase mb-2">Sources</h4>
-                 <ul className="space-y-2">
-                   {updates.links.map((link, i) => (
-                     <li key={i}>
-                       <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-xs text-green-600 flex items-center hover:underline">
-                         <span className="truncate flex-1">{link.title}</span>
-                         <ArrowRight size={10} className="ml-1 flex-shrink-0" />
-                       </a>
-                     </li>
-                   ))}
-                 </ul>
-               </div>
-             )}
+            <div className="prose prose-green prose-sm max-w-none">
+              {updates?.text ? (
+                (() => {
+                  const paragraphs = updates.text
+                    .split('\n')
+                    .map((p) => p.trim().replace(/\*/g, ''))
+                    .filter(Boolean);
+                  const visibleParagraphs = showFullInsights ? paragraphs : paragraphs.slice(0, 2);
+
+                  return (
+                    <>
+                      {visibleParagraphs.map((paragraph, idx) => (
+                        <p key={idx} className="text-gray-700 mb-2 leading-relaxed">
+                          {paragraph}
+                        </p>
+                      ))}
+                      {paragraphs.length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowFullInsights((prev) => !prev)}
+                          className="text-sm font-semibold text-green-600 hover:text-green-700 mt-2"
+                        >
+                          {showFullInsights ? 'Show less' : 'Read more'}
+                        </button>
+                      )}
+                    </>
+                  );
+                })()
+              ) : (
+                <p className="text-gray-500 italic">Content unavailable offline.</p>
+              )}
+            </div>
+
+            {updates?.links && updates.links.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <h4 className="text-xs font-bold text-gray-400 uppercase mb-2">Sources</h4>
+                <ul className="space-y-2">
+                  {updates.links.map((link, i) => (
+                    <li key={i}>
+                      <a
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-green-600 flex items-center hover:underline"
+                      >
+                        <span className="truncate flex-1">{link.title}</span>
+                        <ArrowRight size={10} className="ml-1 flex-shrink-0" />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -3,10 +3,14 @@ export enum ViewState {
   DASHBOARD = 'DASHBOARD',
   CHAT = 'CHAT',
   DOCTOR = 'DOCTOR',
-  MARKET = 'MARKET'
+  MARKET = 'MARKET',
+  FARMER_HOME = 'FARMER_HOME',
+  BUYER_MARKETPLACE = 'BUYER_MARKETPLACE',
 }
 
 export type Language = 'en' | 'tw' | 'ee' | 'ga';
+
+export type UserRole = 'farmer' | 'buyer' | 'pending';
 
 export const SUPPORTED_LANGUAGES: { id: Language; label: string }[] = [
   { id: 'en', label: 'English' },
