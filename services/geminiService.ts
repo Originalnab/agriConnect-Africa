@@ -2,7 +2,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Language, WeatherData, NewsResponse, PlantingResponse, PestForecast, CropInfo, AnalysisResult, RotationAdvice } from "../types";
 
-const apiKey = process.env.API_KEY || '';
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
 const ai = new GoogleGenAI({ apiKey });
 const CACHE_PREFIX = 'agri_connect_';
 
@@ -13,7 +13,7 @@ async function fetchWithCache<T>(
 ): Promise<T & { fromCache?: boolean }> {
   const cacheKey = CACHE_PREFIX + key;
   const cached = localStorage.getItem(cacheKey);
-  
+
   // If offline, force return cache or error
   if (!navigator.onLine) {
     if (cached) {
@@ -56,7 +56,7 @@ const getSystemInstruction = (language: Language) => {
 };
 
 export const sendChatMessage = async (
-  history: { role: string; parts: { text: string }[] }[], 
+  history: { role: string; parts: { text: string }[] }[],
   message: string,
   language: Language
 ): Promise<string> => {
@@ -85,7 +85,7 @@ export const sendChatMessage = async (
 
 export const generateFarmingVisual = async (prompt: string): Promise<string> => {
   if (!navigator.onLine) throw new Error("Offline");
-  
+
   try {
     const response = await ai.models.generateImages({
       model: 'imagen-4.0-generate-001',
@@ -151,8 +151,8 @@ export const analyzeCropHealth = async (base64Image: string, language: Language)
                 type: Type.OBJECT,
                 properties: {
                   label: { type: Type.STRING },
-                  box_2d: { 
-                    type: Type.ARRAY, 
+                  box_2d: {
+                    type: Type.ARRAY,
                     items: { type: Type.NUMBER },
                     description: "Bounding box [ymin, xmin, ymax, xmax] normalized to 0-1000"
                   }
@@ -197,7 +197,7 @@ export const getWeatherForecast = async (location: string, language: Language): 
     });
 
     const text = response.text || "";
-    
+
     const getVal = (key: string) => {
       const match = text.match(new RegExp(`${key}:\\s*(.*)`, 'i'));
       return match ? match[1].trim() : '--';
@@ -263,10 +263,10 @@ export const getLiveAgriUpdates = async (location: string, language: Language): 
     });
 
     const text = response.text || "No updates available.";
-    
+
     const links: { title: string, url: string }[] = [];
     const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-    
+
     if (chunks) {
       chunks.forEach((chunk: any) => {
         if (chunk.web?.uri && chunk.web?.title) {
