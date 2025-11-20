@@ -84,10 +84,20 @@ const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ language, isOnline 
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
   const [selectedItem, setSelectedItem] = useState<MarketplaceItem | null>(null);
+  const [listings, setListings] = useState<MarketplaceItem[]>(supplierListings);
+  const [newItem, setNewItem] = useState({
+    name: '',
+    price: '',
+    unit: '',
+    sellerName: '',
+    location: '',
+    category: 'grains',
+  });
+  const [imagePreview, setImagePreview] = useState<string | undefined>(undefined);
 
   const categories = ['all', 'grains', 'vegetables', 'fruits', 'processed'];
 
-  const filteredListings = supplierListings.filter((item) => {
+  const filteredListings = listings.filter((item) => {
     const matchesCategory = category === 'all' || item.category === category;
     const matchesSearch =
       item.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -100,6 +110,45 @@ const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ language, isOnline 
     { label: 'Awaiting Payment', value: '04', icon: Wallet, color: 'bg-amber-50 text-amber-700' },
     { label: 'Messages', value: '12', icon: MessageCircle, color: 'bg-sky-50 text-sky-700' },
   ];
+
+  const handleNewItemChange = (field: string, value: string) => {
+    setNewItem((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleImageUpload = (file?: File) => {
+    if (!file) {
+      setImagePreview(undefined);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        setImagePreview(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleAddListing = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!newItem.name.trim() || !newItem.price.trim() || !newItem.unit.trim() || !newItem.location.trim()) return;
+    const newListing: MarketplaceItem = {
+      id: (Date.now()).toString(),
+      name: newItem.name.trim(),
+      price: Number(newItem.price),
+      unit: newItem.unit.trim(),
+      sellerName: newItem.sellerName.trim() || 'You',
+      rating: 5,
+      reviews: 0,
+      location: newItem.location.trim(),
+      category: newItem.category as any,
+      image: imagePreview,
+      isVerified: false,
+    };
+    setListings((prev) => [newListing, ...prev]);
+    setNewItem({ name: '', price: '', unit: '', sellerName: '', location: '', category: 'grains' });
+    setImagePreview(undefined);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-emerald-50/40 to-emerald-100/30 pb-24">
@@ -185,6 +234,11 @@ const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ language, isOnline 
                 className="bg-white border border-stone-200 rounded-3xl p-4 shadow-sm hover:border-emerald-200 transition cursor-pointer"
                 onClick={() => setSelectedItem(item)}
               >
+                {item.image && (
+                  <div className="mb-3 rounded-2xl overflow-hidden h-36 bg-stone-50">
+                    <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                  </div>
+                )}
                 <div className="flex justify-between items-start">
                   <div>
                     <h3 className="text-base font-semibold text-stone-900 flex items-center gap-2">
@@ -295,6 +349,116 @@ const BuyerMarketplace: React.FC<BuyerMarketplaceProps> = ({ language, isOnline 
               </div>
             </div>
           )}
+        </section>
+
+        <section className="bg-white border border-emerald-200 rounded-3xl p-5 shadow-sm space-y-4">
+          <div>
+            <p className="text-xs uppercase font-semibold text-emerald-500 tracking-[0.2em]">
+              Sell produce
+            </p>
+            <h2 className="text-lg font-semibold text-stone-900">List your produce</h2>
+            <p className="text-sm text-stone-500">Add details and an image so buyers can find it.</p>
+          </div>
+          <form className="space-y-3" onSubmit={handleAddListing}>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-stone-600">Product name</label>
+                <input
+                  value={newItem.name}
+                  onChange={(e) => handleNewItemChange('name', e.target.value)}
+                  className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="e.g., Fresh Tomatoes"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-stone-600">Price (GHS)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={newItem.price}
+                  onChange={(e) => handleNewItemChange('price', e.target.value)}
+                  className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="e.g., 150"
+                  required
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-stone-600">Unit</label>
+                <input
+                  value={newItem.unit}
+                  onChange={(e) => handleNewItemChange('unit', e.target.value)}
+                  className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="e.g., large crate"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-stone-600">Location</label>
+                <input
+                  value={newItem.location}
+                  onChange={(e) => handleNewItemChange('location', e.target.value)}
+                  className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="Town, Country"
+                  required
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-stone-600">Category</label>
+                <select
+                  value={newItem.category}
+                  onChange={(e) => handleNewItemChange('category', e.target.value)}
+                  className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                >
+                  {categories
+                    .filter((c) => c !== 'all')
+                    .map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-stone-600">Upload image</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleImageUpload(e.target.files ? e.target.files[0] : undefined)}
+                    className="w-full text-sm"
+                  />
+                </div>
+                {imagePreview && (
+                  <div className="mt-2 h-20 rounded-lg overflow-hidden border border-stone-200">
+                    <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-stone-600">Contact name</label>
+                <input
+                  value={newItem.sellerName}
+                  onChange={(e) => handleNewItemChange('sellerName', e.target.value)}
+                  className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="Your name or business"
+                />
+              </div>
+            </div>
+            <button
+              type="submit"
+              disabled={!isOnline}
+              className="w-full bg-emerald-600 text-white rounded-2xl py-3 text-sm font-semibold hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isOnline ? 'List produce' : 'Connect to list produce'}
+            </button>
+          </form>
         </section>
       </div>
     </div>
