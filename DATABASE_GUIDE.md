@@ -8,7 +8,7 @@ Your Supabase database will have 10 tables:
 2. **farms** - Farm information for each user
 3. **crops** - Crops planted on farms
 4. **crop_analysis** - AI analysis of crop health
-5. **chat_history** - AgriGuide chat conversations
+5. **chat_history** - AgriConnect Africa chat conversations
 6. **weather_cache** - Cached weather data
 7. **market_data** - Agricultural market prices
 8. **pest_forecast** - Pest risk predictions
@@ -95,7 +95,7 @@ AI analysis results from CropDoctor
 ```
 
 ### 5. **chat_history**
-Saves AgriGuide conversations
+Saves AgriConnect Africa conversations
 ```
 - id, user_id
 - language - en/tw/ee/ga

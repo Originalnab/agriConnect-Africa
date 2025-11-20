@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import supabaseAuth from '../services/supabaseAuth';
 import { Mail, Sprout, BarChart3, Users } from 'lucide-react';
+import logo from './Assests/AgriConnnect.png';
 
 type AuthMode = 'login' | 'register';
 
@@ -132,6 +133,9 @@ const AuthForm: React.FC = () => {
         {/* Right Side - Auth Form */}
         <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl shadow-emerald-100 border border-emerald-50 p-8 space-y-6">
           <div className="text-center space-y-2">
+            <div className="flex justify-center">
+              <img src={logo} alt="AgriConnect Africa logo" className="h-10 w-auto" />
+            </div>
             <p className="text-xs uppercase tracking-[0.3em] text-emerald-600 font-semibold">AgriConnect Africa</p>
             <h1 className="text-2xl font-bold text-stone-800">
               {mode === 'login' ? 'Welcome back' : 'Create your account'}

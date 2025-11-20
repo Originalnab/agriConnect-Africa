@@ -259,7 +259,7 @@ const FarmerHome: React.FC = () => {
                     <h2 className="text-2xl font-bold mb-2">Optimize Your Farm</h2>
                     <p className="mb-6 text-emerald-50">Get personalized farming recommendations from our AI assistant</p>
                     <button className="px-6 py-3 bg-white text-emerald-600 font-semibold rounded-lg hover:bg-emerald-50 transition">
-                        Ask AgriGuide
+                        Ask AgriConnect Africa
                     </button>
                 </div>
             </div>

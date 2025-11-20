@@ -42,7 +42,7 @@ async function fetchWithCache<T>(
 
 const getSystemInstruction = (language: Language) => {
   const baseInstruction = `
-    You are "AgriGuide", a friendly and expert agricultural advisor specifically for farmers in Ghana and Sub-Saharan Africa.
+    You are "AgriConnect Africa", a friendly and expert agricultural advisor specifically for farmers in Ghana and Sub-Saharan Africa.
     - Your tone is encouraging, practical, and respectful.
     - When discussing currency, use Ghana Cedis (GHS).
     - Focus on crops like Cocoa, Maize, Cassava, Yams, Plantains, and Rice.
@@ -83,7 +83,7 @@ export const sendChatMessage = async (
     return response.text || "I understood, but I couldn't generate a text response.";
   } catch (error) {
     console.error("Chat Error:", error);
-    throw new Error("Failed to get response from AgriGuide.");
+    throw new Error("Failed to get response from AgriConnect Africa.");
   }
 };
 

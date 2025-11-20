@@ -68,10 +68,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ language, isOnline }) => 
   useEffect(() => {
     const getWelcomeMessage = (lang: Language) => {
       switch (lang) {
-        case 'tw': return 'Maakye! Me din de AgriGuide. Mɛtumi aboa wo wɔ wo afuo ho? Bisa me asɛm biara.';
-        case 'ee': return 'Woezor! AgriGuide enye ŋkɔnye. Aleke mateŋ akpe ɖe ŋuwò le wò agble ŋu? Biam naneke.';
-        case 'ga': return 'Awula! AgriGuide ji mi. Te mafee tɛŋŋ maye mabua bo yɛ o ŋmɔ lɛ he? Bi mi nɔ fɛɛ nɔ.';
-        default: return 'Hello! I am AgriGuide. How can I help you with your farm today? Ask me about crops, pests, or weather patterns in Ghana.';
+        case 'tw': return 'Maakye! Me din de AgriConnect Africa. Mɛtumi aboa wo wɔ wo afuo ho? Bisa me asɛm biara.';
+        case 'ee': return 'Woezor! AgriConnect Africa enye ŋkɔnye. Aleke mateŋ akpe ɖe ŋuwò le wò agble ŋu? Biam naneke.';
+        case 'ga': return 'Awula! AgriConnect Africa ji mi. Te mafee tɛŋŋ maye mabua bo yɛ o ŋmɔ lɛ he? Bi mi nɔ fɛɛ nɔ.';
+        default: return 'Hello! I am AgriConnect Africa. How can I help you with your farm today? Ask me about crops, pests, or weather patterns in Ghana.';
       }
     };
 
@@ -266,7 +266,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ language, isOnline }) => 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] bg-stone-50">
       <div className="bg-green-700 text-white p-4 shadow-md">
-        <h2 className="text-lg font-bold">AgriGuide Assistant</h2>
+        <h2 className="text-lg font-bold">AgriConnect Africa Assistant</h2>
         <p className="text-xs text-green-100 mb-2">
           {language === 'tw' ? 'Afuo ho ŋaawoo' : 
            language === 'ee' ? 'Agble ŋuti aɖaŋuɖoɖo' : 

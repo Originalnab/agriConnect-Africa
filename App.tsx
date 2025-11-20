@@ -16,6 +16,7 @@ import supabaseAuth from './services/supabaseAuth';
 import { Session } from '@supabase/supabase-js';
 import { enable2FA } from './services/twoFactorAuth';
 import { WifiOff } from 'lucide-react';
+import appLogo from './components/Assests/AgriConnnect.png';
 
 // Temporary flag to bypass 2FA while keeping the implementation intact.
 const SUSPEND_TWO_FACTOR = true;
@@ -221,7 +222,10 @@ const App: React.FC = () => {
   if (!isAuthReady) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-50">
-        <p className="text-sm text-stone-500 animate-pulse">Loading your account...</p>
+        <div className="text-center space-y-2">
+          <p className="text-sm text-stone-500 animate-pulse">Loading your account...</p>
+          <p className="text-xs text-stone-400">Powered by Kasapa Ai Digitals</p>
+        </div>
       </div>
     );
   }
@@ -260,7 +264,10 @@ const App: React.FC = () => {
   if (session && isRoleLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-50">
-        <p className="text-sm text-stone-500 animate-pulse">Preparing your personalized workspace...</p>
+        <div className="text-center space-y-2">
+          <p className="text-sm text-stone-500 animate-pulse">Preparing your personalized workspace...</p>
+          <p className="text-xs text-stone-400">Powered by Kasapa Ai Digitals</p>
+        </div>
       </div>
     );
   }
@@ -292,21 +299,10 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Top Bar with Language and User Account */}
+      {/* Top Bar with Logo and User Account */}
       <div className="bg-white border-b border-stone-200 px-4 py-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm text-stone-600">
-          <label className="font-semibold">Language</label>
-          <select
-            value={language}
-            onChange={(e) => setLanguage(e.target.value as Language)}
-            className="border border-stone-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
-          >
-            {SUPPORTED_LANGUAGES.map(({ id, label }) => (
-              <option key={id} value={id}>
-                {label}
-              </option>
-            ))}
-          </select>
+        <div className="flex items-center gap-2">
+          <img src={appLogo} alt="AgriConnect Africa logo" className="h-10 w-auto rounded-md border border-stone-200" />
         </div>
         <UserAccount />
       </div>
@@ -316,6 +312,7 @@ const App: React.FC = () => {
         {renderView()}
       </main>
 
+      <div className="bg-stone-50 text-[11px] text-stone-400 text-center py-2">Powered by Kasapa Ai Digitals</div>
       {/* Navigation */}
       <Navigation currentView={currentView} setView={setCurrentView} language={language} userRole={userRole} />
     </div>
