@@ -133,8 +133,9 @@ const AuthForm: React.FC = () => {
         {/* Right Side - Auth Form */}
         <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl shadow-emerald-100 border border-emerald-50 p-8 space-y-6">
           <div className="text-center space-y-2">
-            <div className="flex justify-center">
-              <img src={logo} alt="AgriConnect Africa logo" className="h-10 w-auto" />
+            <div className="flex flex-col items-center space-y-1">
+              <img src={logo} alt="AgriConnect Africa logo" className="h-16 w-auto" />
+              <span className="text-[11px] text-stone-400">Powered by KasapaAi Digitals</span>
             </div>
             <p className="text-xs uppercase tracking-[0.3em] text-emerald-600 font-semibold">AgriConnect Africa</p>
             <h1 className="text-2xl font-bold text-stone-800">

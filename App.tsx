@@ -302,7 +302,10 @@ const App: React.FC = () => {
       {/* Top Bar with Logo and User Account */}
       <div className="bg-white border-b border-stone-200 px-4 py-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <img src={appLogo} alt="AgriConnect Africa logo" className="h-10 w-auto rounded-md border border-stone-200" />
+          <div className="flex items-center gap-3">
+            <img src={appLogo} alt="AgriConnect Africa logo" className="h-12 w-auto rounded-md border border-stone-200" />
+            <span className="text-xs text-stone-400">Powered by KasapaAi Digitals</span>
+          </div>
         </div>
         <UserAccount />
       </div>
