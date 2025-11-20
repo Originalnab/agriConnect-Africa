@@ -27,7 +27,7 @@ const MarketView: React.FC<MarketViewProps> = ({ language, isOnline }) => {
   const [selectedItem, setSelectedItem] = useState<MarketplaceItem | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('momo');
   const [paymentStep, setPaymentStep] = useState<'select' | 'input' | 'processing' | 'success'>('select');
-  const [newImagePreview, setNewImagePreview] = useState<string | null>(null);
+  const [newImagePreviews, setNewImagePreviews] = useState<string[]>([]);
 
   // --- MOCK DATA ---
 
@@ -99,26 +99,31 @@ const MarketView: React.FC<MarketViewProps> = ({ language, isOnline }) => {
       rating: 5.0,
       reviews: 0,
       isVerified: true,
-      image: newImagePreview || undefined,
+      image: newImagePreviews[0] || undefined,
     };
 
     setListings([newItem, ...listings]);
-    setNewImagePreview(null);
+    setNewImagePreviews([]);
     setShowSellModal(false);
   };
 
-  const handleImageChange = (file?: File | null) => {
-    if (!file) {
-      setNewImagePreview(null);
+  const handleImageChange = (files?: FileList | null) => {
+    if (!files || files.length === 0) {
+      setNewImagePreviews([]);
       return;
     }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === 'string') {
-        setNewImagePreview(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
+    const selected = Array.from(files).slice(0, 7); // limit to 7 images
+    const readers = selected.map(
+      (file) =>
+        new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+          reader.readAsDataURL(file);
+        }),
+    );
+    Promise.all(readers).then((previews) => {
+      setNewImagePreviews(previews.filter(Boolean));
+    });
   };
 
   // --- TRANSLATIONS ---
@@ -388,18 +393,26 @@ const MarketView: React.FC<MarketViewProps> = ({ language, isOnline }) => {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-600 mb-1">Upload Image</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleImageChange(e.target.files?.[0])}
-                  className="w-full text-sm"
-                />
-                {newImagePreview && (
-                  <div className="mt-2 h-24 rounded-lg overflow-hidden border border-gray-200">
-                    <img src={newImagePreview} alt="Preview" className="w-full h-full object-cover" />
-                  </div>
-                )}
+                <label className="block text-xs font-bold text-gray-600 mb-1">Upload Images (max 7)</label>
+                <div className="border border-dashed border-gray-300 rounded-lg p-3 bg-gray-50 hover:border-green-400 transition flex flex-col gap-2">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => handleImageChange(e.target.files)}
+                    className="w-full text-sm"
+                  />
+                  <p className="text-[11px] text-gray-500">Add up to 7 photos to help buyers see quality.</p>
+                  {newImagePreviews.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2">
+                      {newImagePreviews.map((src, idx) => (
+                        <div key={idx} className="h-16 rounded-lg overflow-hidden border border-gray-200">
+                          <img src={src} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
               <button type="submit" className="w-full bg-green-600 text-white py-3.5 rounded-xl font-bold text-sm shadow-md mt-2">
                 Post Ad
