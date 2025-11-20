@@ -116,15 +116,15 @@ const AuthForm: React.FC = () => {
           {/* Stats */}
           <div className="grid grid-cols-3 gap-4 mt-8">
             <div className="text-center p-4 bg-white rounded-xl shadow">
-              <div className="text-2xl font-bold text-emerald-600">10K+</div>
+              <div className="text-2xl font-bold text-emerald-600">50+</div>
               <div className="text-xs text-stone-600">Active Farmers</div>
             </div>
             <div className="text-center p-4 bg-white rounded-xl shadow">
-              <div className="text-2xl font-bold text-blue-600">5K+</div>
+              <div className="text-2xl font-bold text-blue-600">25+</div>
               <div className="text-xs text-stone-600">Buyers</div>
             </div>
             <div className="text-center p-4 bg-white rounded-xl shadow">
-              <div className="text-2xl font-bold text-amber-600">20+</div>
+              <div className="text-2xl font-bold text-amber-600">5+</div>
               <div className="text-xs text-stone-600">Countries</div>
             </div>
           </div>
@@ -134,7 +134,7 @@ const AuthForm: React.FC = () => {
         <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl shadow-emerald-100 border border-emerald-50 p-8 space-y-6">
           <div className="text-center space-y-2">
             <div className="flex flex-col items-center space-y-1">
-              <img src={logo} alt="AgriConnect Africa logo" className="h-16 w-auto" />
+              <img src={logo} alt="AgriConnect Africa logo" className="h-20 w-auto" />
               <span className="text-[11px] text-stone-400">Powered by KasapaAi Digitals</span>
             </div>
             <p className="text-xs uppercase tracking-[0.3em] text-emerald-600 font-semibold">AgriConnect Africa</p>

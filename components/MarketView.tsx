@@ -27,6 +27,7 @@ const MarketView: React.FC<MarketViewProps> = ({ language, isOnline }) => {
   const [selectedItem, setSelectedItem] = useState<MarketplaceItem | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('momo');
   const [paymentStep, setPaymentStep] = useState<'select' | 'input' | 'processing' | 'success'>('select');
+  const [newImagePreview, setNewImagePreview] = useState<string | null>(null);
 
   // --- MOCK DATA ---
 
@@ -97,11 +98,27 @@ const MarketView: React.FC<MarketViewProps> = ({ language, isOnline }) => {
       sellerName: 'You', // Simplified
       rating: 5.0,
       reviews: 0,
-      isVerified: true
+      isVerified: true,
+      image: newImagePreview || undefined,
     };
 
     setListings([newItem, ...listings]);
+    setNewImagePreview(null);
     setShowSellModal(false);
+  };
+
+  const handleImageChange = (file?: File | null) => {
+    if (!file) {
+      setNewImagePreview(null);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        setNewImagePreview(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   // --- TRANSLATIONS ---
@@ -281,11 +298,15 @@ const MarketView: React.FC<MarketViewProps> = ({ language, isOnline }) => {
             <div className="grid grid-cols-2 gap-3">
               {filteredListings.map(item => (
                  <div key={item.id} className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100 flex flex-col h-full">
-                    {/* Placeholder Image */}
+                    {/* Product Image */}
                     <div className="h-28 bg-gray-100 relative">
-                       <div className="absolute inset-0 flex items-center justify-center text-green-200">
-                         <ShoppingBag size={32} />
-                       </div>
+                       {item.image ? (
+                         <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                       ) : (
+                         <div className="absolute inset-0 flex items-center justify-center text-green-200">
+                           <ShoppingBag size={32} />
+                         </div>
+                       )}
                        <div className="absolute top-2 left-2 bg-white/90 px-1.5 py-0.5 rounded text-[10px] font-bold text-gray-600">
                           {item.category}
                        </div>
@@ -365,6 +386,20 @@ const MarketView: React.FC<MarketViewProps> = ({ language, isOnline }) => {
                   <MapPin className="absolute left-3 top-3 text-gray-400" size={16} />
                   <input name="location" required className="w-full border border-gray-200 rounded-lg p-3 pl-10 text-sm focus:ring-2 focus:ring-green-500 outline-none" placeholder="Town or City" />
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1">Upload Image</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleImageChange(e.target.files?.[0])}
+                  className="w-full text-sm"
+                />
+                {newImagePreview && (
+                  <div className="mt-2 h-24 rounded-lg overflow-hidden border border-gray-200">
+                    <img src={newImagePreview} alt="Preview" className="w-full h-full object-cover" />
+                  </div>
+                )}
               </div>
               <button type="submit" className="w-full bg-green-600 text-white py-3.5 rounded-xl font-bold text-sm shadow-md mt-2">
                 Post Ad
