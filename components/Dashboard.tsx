@@ -11,11 +11,10 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ language, setLanguage, isOnline }) => {
-  const geminiKey =
-    ((import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_GEMINI_API_KEY ??
-      (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.GEMINI_API_KEY ??
-      (typeof process !== 'undefined' ? (process as any)?.env?.GEMINI_API_KEY : undefined) ??
-      '') || undefined;
+  const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
+  const proxyUrl =
+    env.VITE_GEMINI_PROXY_URL ??
+    (env.VITE_SUPABASE_URL ? `${env.VITE_SUPABASE_URL}/functions/v1/gemini-proxy` : undefined);
   const [loading, setLoading] = useState(true);
   const [updates, setUpdates] = useState<NewsResponse | null>(null);
   const [weather, setWeather] = useState<WeatherData | null>(null);
@@ -42,10 +41,10 @@ const Dashboard: React.FC<DashboardProps> = ({ language, setLanguage, isOnline }
   // Fetch Data based on current location and language
   const fetchData = async (loc: string) => {
     setLoading(true);
-    if (!geminiKey) {
-      console.warn('Gemini API key missing. Set VITE_GEMINI_API_KEY to enable AI insights.');
+    if (!proxyUrl) {
+      console.warn('Gemini proxy URL missing. Set VITE_GEMINI_PROXY_URL (or VITE_SUPABASE_URL) to enable AI insights.');
       setUpdates({
-        text: 'AI insights are unavailable because the Gemini API key is missing. Set VITE_GEMINI_API_KEY (or GEMINI_API_KEY) in your environment and reload.',
+        text: 'AI insights are unavailable because the Gemini proxy URL is missing. Set VITE_GEMINI_PROXY_URL (or VITE_SUPABASE_URL) in your environment and redeploy.',
         links: [],
         fromCache: false,
       });

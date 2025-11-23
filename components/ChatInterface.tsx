@@ -10,6 +10,10 @@ interface ChatInterfaceProps {
 }
 
 const ChatInterface: React.FC<ChatInterfaceProps> = ({ language, isOnline }) => {
+  const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
+  const proxyUrl =
+    env.VITE_GEMINI_PROXY_URL ??
+    (env.VITE_SUPABASE_URL ? `${env.VITE_SUPABASE_URL}/functions/v1/gemini-proxy` : undefined);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -162,7 +166,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ language, isOnline }) => 
   };
 
   const handleSend = async (type: 'text' | 'image' = 'text') => {
-    if (!input.trim() || !isOnline) return;
+    if (!input.trim() || !isOnline || !proxyUrl) return;
 
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
@@ -344,6 +348,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ language, isOnline }) => 
         </div>
       </div>
 
+      {!proxyUrl && (
+        <div className="bg-amber-50 text-amber-800 text-sm px-4 py-3 border-b border-amber-200">
+          AI replies are disabled: missing Gemini proxy URL. Set `VITE_GEMINI_PROXY_URL` (or `VITE_SUPABASE_URL`) and redeploy.
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24">
         {filteredMessages.length === 0 && searchTerm ? (
            <div className="text-center py-10 text-gray-400">
@@ -432,14 +442,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ language, isOnline }) => 
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend('text')}
             placeholder={
+              !proxyUrl ? "AI disabled: missing proxy URL" :
               !isOnline ? "You are offline" :
-              language === 'tw' ? 'Bisa asɛm...' : 
+              language === 'tw' ? 'Bisa asem...' :
               language === 'ee' ? 'Biam naneke...' :
-              language === 'ga' ? 'Bi mi nɔ ko...' :
+              language === 'ga' ? 'Bi mi ni ko...' :
               "Ask about crops..."
             }
             className="flex-1 bg-transparent outline-none text-sm text-gray-800 min-w-0"
-            disabled={isLoading || !isOnline}
+            disabled={isLoading || !isOnline || !proxyUrl}
           />
           
           <div className="flex items-center space-x-1 flex-shrink-0">

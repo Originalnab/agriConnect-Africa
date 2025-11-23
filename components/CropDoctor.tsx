@@ -12,6 +12,10 @@ interface CropDoctorProps {
 type DoctorView = 'DIAGNOSE' | 'LIBRARY' | 'ROTATION';
 
 const CropDoctor: React.FC<CropDoctorProps> = ({ language, isOnline }) => {
+  const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
+  const proxyUrl =
+    env.VITE_GEMINI_PROXY_URL ??
+    (env.VITE_SUPABASE_URL ? `${env.VITE_SUPABASE_URL}/functions/v1/gemini-proxy` : undefined);
   const [view, setView] = useState<DoctorView>('DIAGNOSE');
   
   // --- DIAGNOSIS STATE ---
@@ -66,6 +70,7 @@ const CropDoctor: React.FC<CropDoctorProps> = ({ language, isOnline }) => {
   };
 
   const handleAnalysis = async (base64Data: string) => {
+    if (!proxyUrl) return;
     setIsAnalyzing(true);
     setAnalysis(null);
     try {
@@ -88,6 +93,7 @@ const CropDoctor: React.FC<CropDoctorProps> = ({ language, isOnline }) => {
   // --- HANDLERS: LIBRARY ---
 
   const handleCropSelect = async (crop: string) => {
+    if (!proxyUrl) return;
     if (compareMode) {
       if (selectedForCompare.includes(crop)) {
         setSelectedForCompare(prev => prev.filter(c => c !== crop));
@@ -124,6 +130,7 @@ const CropDoctor: React.FC<CropDoctorProps> = ({ language, isOnline }) => {
   };
 
   const handleCompare = async () => {
+    if (!proxyUrl) return;
     setIsLoadingCompare(true);
     setComparisonData([]);
     setComparisonNotes({});
@@ -167,7 +174,7 @@ const CropDoctor: React.FC<CropDoctorProps> = ({ language, isOnline }) => {
   };
 
   const getRotationAdvice = async () => {
-    if (rotationHistory.length === 0) return;
+    if (rotationHistory.length === 0 || !proxyUrl) return;
     setLoadingRotation(true);
     try {
       const result = await getCropRotationAdvice("Ghana", rotationHistory, language);
@@ -245,6 +252,12 @@ const CropDoctor: React.FC<CropDoctorProps> = ({ language, isOnline }) => {
           </button>
         </div>
       </div>
+
+      {!proxyUrl && (
+        <div className="mx-4 mt-3 mb-2 px-4 py-3 bg-amber-50 text-amber-800 text-sm border border-amber-200 rounded-lg">
+          AI tools are disabled: missing Gemini proxy URL. Set `VITE_GEMINI_PROXY_URL` (or `VITE_SUPABASE_URL`) and redeploy.
+        </div>
+      )}
 
       <div className="p-4 flex-1">
         {/* --- DIAGNOSE VIEW --- */}

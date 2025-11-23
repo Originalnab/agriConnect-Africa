@@ -60,6 +60,8 @@ const listeners = new Set<AuthStateListener>();
 let currentSession: SupabaseAuthSession | null = null;
 
 const buildRedirectTo = () => {
+  const configured = import.meta.env.VITE_SITE_URL as string | undefined;
+  if (configured) return configured;
   if (typeof window === 'undefined') return undefined;
   const url = new URL(window.location.href);
   url.hash = '';

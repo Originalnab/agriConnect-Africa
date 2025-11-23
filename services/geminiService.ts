@@ -1,13 +1,72 @@
-
-import { GoogleGenAI, Type } from "@google/genai";
+import { Type } from "@google/genai";
 import { Language, WeatherData, NewsResponse, PlantingResponse, PestForecast, CropInfo, AnalysisResult, RotationAdvice } from "../types";
 
-const apiKey =
-  ((import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_GEMINI_API_KEY ??
-    (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.GEMINI_API_KEY ??
-    (typeof process !== 'undefined' ? (process as any)?.env?.GEMINI_API_KEY : undefined) ??
-    '') || '';
-const ai = new GoogleGenAI({ apiKey });
+const proxyUrl =
+  (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_GEMINI_PROXY_URL ??
+  ((import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_SUPABASE_URL
+    ? `${(import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_SUPABASE_URL}/functions/v1/gemini-proxy`
+    : undefined);
+
+const ensureProxyUrl = () => {
+  if (!proxyUrl) {
+    throw new Error("Gemini proxy URL is not configured.");
+  }
+  return proxyUrl;
+};
+
+type GenerateContentPayload = {
+  endpoint: "generateContent";
+  model: string;
+  contents: any[];
+  systemInstruction?: any;
+  tools?: any[];
+  responseMimeType?: string;
+  responseSchema?: any;
+  config?: any;
+};
+
+type GenerateImagePayload = {
+  endpoint: "generateImages";
+  model: string;
+  prompt: { text: string };
+  numberOfImages?: number;
+  outputMimeType?: string;
+  aspectRatio?: string;
+};
+
+type GeminiPayload = GenerateContentPayload | GenerateImagePayload;
+
+const callGemini = async <T = any>(payload: GeminiPayload): Promise<T> => {
+  const url = ensureProxyUrl();
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = (data && (data.error || data.message)) || "Gemini proxy error";
+    throw new Error(message);
+  }
+  return data as T;
+};
+
+const extractText = (response: any): string => {
+  const candidate = response?.candidates?.[0];
+  const parts: any[] | undefined = candidate?.content?.parts || candidate?.content;
+  if (Array.isArray(parts)) {
+    const textParts = parts
+      .map((part) => part?.text || part?.generatedText || (typeof part === "string" ? part : ""))
+      .filter(Boolean);
+    if (textParts.length) return textParts.join("\n");
+  }
+  if (candidate?.groundingMetadata?.webSearchQueries) {
+    return candidate?.content?.parts?.[0]?.text ?? "";
+  }
+  return response?.text ?? "";
+};
+
 const CACHE_PREFIX = 'agri_connect_';
 
 // Helper to manage local storage caching
@@ -82,19 +141,26 @@ export const sendChatMessage = async (
     throw new Error("Offline");
   }
   try {
-    const chat = ai.chats.create({
-      model: 'gemini-2.5-flash',
-      config: {
-        systemInstruction: getSystemInstruction(language),
+    const response = await callGemini({
+      endpoint: "generateContent",
+      model: "gemini-2.5-flash",
+      contents: [
+        ...history.map((h) => ({
+          role: h.role,
+          parts: h.parts,
+        })),
+        {
+          role: "user",
+          parts: [{ text: message }],
+        },
+      ],
+      systemInstruction: {
+        role: "system",
+        parts: [{ text: getSystemInstruction(language) }],
       },
-      history: history.map(h => ({
-        role: h.role,
-        parts: h.parts,
-      }))
     });
 
-    const response = await chat.sendMessage({ message });
-    return response.text || "I understood, but I couldn't generate a text response.";
+    return extractText(response) || "I understood, but I couldn't generate a text response.";
   } catch (error) {
     console.error("Chat Error:", error);
     throw new Error("Failed to get response from AgriConnect Africa.");
@@ -105,14 +171,15 @@ export const generateFarmingVisual = async (prompt: string): Promise<string> => 
   if (!navigator.onLine) throw new Error("Offline");
 
   try {
-    const response = await ai.models.generateImages({
-      model: 'imagen-4.0-generate-001',
-      prompt: `A photorealistic and educational image for an African farmer showing: ${prompt}. The setting should be a farm in Ghana.`,
-      config: {
-        numberOfImages: 1,
-        outputMimeType: 'image/jpeg',
-        aspectRatio: '4:3',
+    const response = await callGemini({
+      endpoint: "generateImages",
+      model: "imagen-4.0-generate-001",
+      prompt: {
+        text: `A photorealistic and educational image for an African farmer showing: ${prompt}. The setting should be a farm in Ghana.`,
       },
+      numberOfImages: 1,
+      outputMimeType: "image/jpeg",
+      aspectRatio: "4:3",
     });
 
     if (response.generatedImages && response.generatedImages[0]?.image?.imageBytes) {
@@ -134,18 +201,21 @@ export const analyzeCropHealth = async (base64Image: string, language: Language)
     if (language === 'ee') langName = 'Ewe';
     if (language === 'ga') langName = 'Ga';
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              data: base64Image,
-              mimeType: 'image/jpeg',
+    const response = await callGemini({
+      endpoint: "generateContent",
+      model: "gemini-2.5-flash",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              inlineData: {
+                data: base64Image,
+                mimeType: "image/jpeg",
+              },
             },
-          },
-          {
-            text: `Analyze this image of a crop. 
+            {
+              text: `Analyze this image of a crop. 
             1. Identify the crop.
             2. Diagnose any visible diseases, pests, or nutrient deficiencies. 
             3. If healthy, confirm it.
@@ -153,37 +223,36 @@ export const analyzeCropHealth = async (base64Image: string, language: Language)
             
             Translate the textual content into ${langName}.
             Return the result as JSON.`
-          },
-        ],
-      },
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            cropName: { type: Type.STRING },
-            diagnosis: { type: Type.STRING },
-            issues: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  label: { type: Type.STRING },
-                  box_2d: {
-                    type: Type.ARRAY,
-                    items: { type: Type.NUMBER },
-                    description: "Bounding box [ymin, xmin, ymax, xmax] normalized to 0-1000"
-                  }
+            },
+          ],
+        },
+      ],
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          cropName: { type: Type.STRING },
+          diagnosis: { type: Type.STRING },
+          issues: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                label: { type: Type.STRING },
+                box_2d: {
+                  type: Type.ARRAY,
+                  items: { type: Type.NUMBER },
+                  description: "Bounding box [ymin, xmin, ymax, xmax] normalized to 0-1000"
                 }
               }
-            },
-            treatment: { type: Type.ARRAY, items: { type: Type.STRING } }
-          }
+            }
+          },
+          treatment: { type: Type.ARRAY, items: { type: Type.STRING } }
         }
       }
     });
 
-    const jsonText = response.text || "{}";
+    const jsonText = extractText(response) || "{}";
     return JSON.parse(jsonText) as AnalysisResult;
   } catch (error) {
     console.error("Vision Error:", error);
@@ -198,26 +267,30 @@ export const getWeatherForecast = async (location: string, language: Language): 
     if (language === 'ee') langName = 'Ewe';
     if (language === 'ga') langName = 'Ga';
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: `Find the current weather forecast for ${location}.
+    const response = await callGemini({
+      endpoint: "generateContent",
+      model: "gemini-2.5-flash",
+      contents: [{
+        role: "user",
+        parts: [{
+          text: `Find the current weather forecast for ${location}.
       If the location is coordinates, identify the nearest town or region name.
       
       Return the details in the following EXACT format (keep keys in English):
       CITY: [City/Region Name]
-      TEMP: [Temperature e.g. 30Â°C]
+      TEMP: [Temperature e.g. 30°C]
       RAIN: [Precipitation chance e.g. 20%]
       WIND: [Wind speed e.g. 15 km/h]
-      CONDITION: [Short weather description translated to ${langName}]`,
-      config: {
-        tools: [{ googleSearch: {} }],
-      },
+      CONDITION: [Short weather description translated to ${langName}]`
+        }]
+      }],
+      tools: [{ googleSearch: {} }],
     });
 
-    const text = response.text || "";
+    const text = extractText(response) || "";
 
     const getVal = (key: string) => {
-      const match = text.match(new RegExp(`${key}:\\s*(.*)`, 'i'));
+      const match = text.match(new RegExp(`${key}:\s*(.*)`, 'i'));
       return match ? match[1].trim() : '--';
     };
 
@@ -238,19 +311,25 @@ export const getPestRiskForecast = async (weatherCondition: string, location: st
     if (language === 'ee') langName = 'Ewe';
     if (language === 'ga') langName = 'Ga';
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: `Based on the current weather condition "${weatherCondition}" in Ghana, predict the risk of fungal diseases or insect pests for common crops (Cocoa, Maize, Tomato).
+    const response = await callGemini({
+      endpoint: "generateContent",
+      model: "gemini-2.5-flash",
+      contents: [{
+        role: "user",
+        parts: [{
+          text: `Based on the current weather condition "${weatherCondition}" in Ghana, predict the risk of fungal diseases or insect pests for common crops (Cocoa, Maize, Tomato).
       
       Output format EXACTLY like this:
       RISK: [Low/Medium/High]
       ALERT: [One sentence warning in ${langName} about specific pests/diseases likely to thrive now]
       ACTION: [One simple preventive action in ${langName}]`
+        }]
+      }]
     });
 
-    const text = response.text || "";
+    const text = extractText(response) || "";
     const getVal = (key: string) => {
-      const match = text.match(new RegExp(`${key}:\\s*(.*)`, 'i'));
+      const match = text.match(new RegExp(`${key}:\s*(.*)`, 'i'));
       return match ? match[1].trim() : '';
     };
 
@@ -266,28 +345,38 @@ export const getLiveAgriUpdates = async (location: string, language: Language): 
   return fetchWithCache(`news_${location}_${language}`, async () => {
     const langName = getLanguageName(language);
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: `Search for the latest agricultural news, potential pest outbreaks, and market trends specifically for farmers in ${location}, Ghana. 
+    const response = await callGemini({
+      endpoint: "generateContent",
+      model: "gemini-2.5-flash",
+      contents: [{
+        role: "user",
+        parts: [{
+          text: `Search for the latest agricultural news, potential pest outbreaks, and market trends specifically for farmers in ${location}, Ghana. 
       Summarize the top 3 most important things a farmer needs to know today.
       
-      Translate the summary into ${langName}.`,
-      config: {
-        tools: [{ googleSearch: {} }],
-      },
+      Translate the summary into ${langName}.`
+        }]
+      }],
+      tools: [{ googleSearch: {} }],
     });
 
-    let text = response.text || "No updates available.";
+    let text = extractText(response) || "No updates available.";
 
     if (language !== 'en') {
-      const translated = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: `Translate the following farming live insights into ${langName}. 
+      const translated = await callGemini({
+        endpoint: "generateContent",
+        model: "gemini-2.5-flash",
+        contents: [{
+          role: "user",
+          parts: [{
+            text: `Translate the following farming live insights into ${langName}. 
 Keep it concise and farmer-friendly. Return only the translated text with no English explanation or prefix.
 
 ${text}`
+          }]
+        }]
       });
-      text = translated.text || text;
+      text = extractText(translated) || text;
     }
 
     const links: { title: string, url: string }[] = [];
@@ -312,15 +401,21 @@ export const getPlantingRecommendations = async (region: string, crop: string, l
     if (language === 'ee') langName = 'Ewe';
     if (language === 'ga') langName = 'Ga';
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: `Act as an expert Ghanaian agronomist.
+    const response = await callGemini({
+      endpoint: "generateContent",
+      model: "gemini-2.5-flash",
+      contents: [{
+        role: "user",
+        parts: [{
+          text: `Act as an expert Ghanaian agronomist.
       Tell me the best month(s) to plant **${crop}** in the **${region}** region of Ghana.
       If there are two seasons (Major and Minor), mention both.
       Keep the answer very short (maximum 20 words).
       Translate the answer into ${langName}.`
+        }]
+      }]
     });
-    return { text: response.text || "Info unavailable." };
+    return { text: extractText(response) || "Info unavailable." };
   });
 };
 
@@ -331,30 +426,34 @@ export const getCropDetails = async (crop: string, language: Language): Promise<
     if (language === 'ee') langName = 'Ewe';
     if (language === 'ga') langName = 'Ga';
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: `Provide a detailed farming guide for ${crop} specifically for Ghana.
+    const response = await callGemini({
+      endpoint: "generateContent",
+      model: "gemini-2.5-flash",
+      contents: [{
+        role: "user",
+        parts: [{
+          text: `Provide a detailed farming guide for ${crop} specifically for Ghana.
       Translate all content into ${langName}.
-      Return the response as a JSON object.`,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            name: { type: Type.STRING, description: "Name of the crop" },
-            plantingSeason: { type: Type.STRING, description: "Best time to plant in Ghana" },
-            careTips: { type: Type.STRING, description: "Key maintenance and care tips" },
-            commonPests: { type: Type.ARRAY, items: { type: Type.STRING } },
-            commonDiseases: { type: Type.ARRAY, items: { type: Type.STRING } },
-            soilRequirements: { type: Type.STRING, description: "Ideal soil type and PH" },
-            companionPlants: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Good companion plants" },
-            harvesting: { type: Type.STRING, description: "Signs of maturity and harvesting advice" }
-          }
+      Return the response as a JSON object.`
+        }]
+      }],
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          name: { type: Type.STRING, description: "Name of the crop" },
+          plantingSeason: { type: Type.STRING, description: "Best time to plant in Ghana" },
+          careTips: { type: Type.STRING, description: "Key maintenance and care tips" },
+          commonPests: { type: Type.ARRAY, items: { type: Type.STRING } },
+          commonDiseases: { type: Type.ARRAY, items: { type: Type.STRING } },
+          soilRequirements: { type: Type.STRING, description: "Ideal soil type and PH" },
+          companionPlants: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Good companion plants" },
+          harvesting: { type: Type.STRING, description: "Signs of maturity and harvesting advice" }
         }
       }
     });
 
-    const jsonText = response.text || "{}";
+    const jsonText = extractText(response) || "{}";
     return JSON.parse(jsonText) as CropInfo;
   });
 };
@@ -366,26 +465,30 @@ export const getCropRotationAdvice = async (region: string, previousCrops: strin
     if (language === 'ee') langName = 'Ewe';
     if (language === 'ga') langName = 'Ga';
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: `I farm in ${region}, Ghana. My previously planted crops were: ${previousCrops.join(', ')}.
+    const response = await callGemini({
+      endpoint: "generateContent",
+      model: "gemini-2.5-flash",
+      contents: [{
+        role: "user",
+        parts: [{
+          text: `I farm in ${region}, Ghana. My previously planted crops were: ${previousCrops.join(', ')}.
       Suggest the best crop to plant next for crop rotation to improve soil health and break pest cycles.
       Explain why.
-      Translate to ${langName} and return JSON.`,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            recommendedCrops: { type: Type.ARRAY, items: { type: Type.STRING } },
-            reasoning: { type: Type.STRING },
-            soilBenefits: { type: Type.STRING }
-          }
+      Translate to ${langName} and return JSON.`
+        }]
+      }],
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          recommendedCrops: { type: Type.ARRAY, items: { type: Type.STRING } },
+          reasoning: { type: Type.STRING },
+          soilBenefits: { type: Type.STRING }
         }
       }
     });
 
-    const jsonText = response.text || "{}";
+    const jsonText = extractText(response) || "{}";
     return JSON.parse(jsonText) as RotationAdvice;
   });
 };
