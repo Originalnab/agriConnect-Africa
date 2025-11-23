@@ -59,6 +59,20 @@ const getSystemInstruction = (language: Language) => {
   return `${baseInstruction}\n${languageInstructions[language]}`;
 };
 
+const getLanguageName = (language: Language): string => {
+  switch (language) {
+    case 'tw':
+      return 'Twi';
+    case 'ee':
+      return 'Ewe';
+    case 'ga':
+      return 'Ga';
+    case 'en':
+    default:
+      return 'English';
+  }
+};
+
 export const sendChatMessage = async (
   history: { role: string; parts: { text: string }[] }[],
   message: string,
@@ -250,10 +264,7 @@ export const getPestRiskForecast = async (weatherCondition: string, location: st
 
 export const getLiveAgriUpdates = async (location: string, language: Language): Promise<NewsResponse> => {
   return fetchWithCache(`news_${location}_${language}`, async () => {
-    let langName = 'English';
-    if (language === 'tw') langName = 'Twi';
-    if (language === 'ee') langName = 'Ewe';
-    if (language === 'ga') langName = 'Ga';
+    const langName = getLanguageName(language);
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
@@ -266,7 +277,18 @@ export const getLiveAgriUpdates = async (location: string, language: Language): 
       },
     });
 
-    const text = response.text || "No updates available.";
+    let text = response.text || "No updates available.";
+
+    if (language !== 'en') {
+      const translated = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: `Translate the following farming live insights into ${langName}. 
+Keep it concise and farmer-friendly. Return only the translated text with no English explanation or prefix.
+
+${text}`
+      });
+      text = translated.text || text;
+    }
 
     const links: { title: string, url: string }[] = [];
     const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;

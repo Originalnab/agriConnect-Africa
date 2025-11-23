@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Loader2, WifiOff, Mic, MicOff, Image as ImageIcon, Volume2, Search, X } from 'lucide-react';
+import { Send, Loader2, WifiOff, Mic, MicOff, Image as ImageIcon, Volume2, Search, X, Pause, Play, Square } from 'lucide-react';
 import { ChatMessage, Language } from '../types';
 import { sendChatMessage, generateFarmingVisual } from '../services/geminiService';
 
@@ -16,8 +16,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ language, isOnline }) => 
   const [isListening, setIsListening] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [activeSpeechId, setActiveSpeechId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   // Load voices on mount
   useEffect(() => {
@@ -53,6 +57,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ language, isOnline }) => 
     return () => {
       if (recognitionRef.current) {
         recognitionRef.current.stop();
+      }
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
       }
     };
   }, []);
@@ -212,10 +219,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ language, isOnline }) => 
     }
   };
 
-  const speakText = (text: string) => {
+  const speakText = (text: string, messageId?: string) => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel(); // Stop previous
+      setIsSpeaking(false);
+      setIsPaused(false);
+      setActiveSpeechId(messageId ?? null);
       const utterance = new SpeechSynthesisUtterance(text);
+      utteranceRef.current = utterance;
       
       // --- Voice Selection Logic ---
       // Priorities:
@@ -255,7 +266,48 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ language, isOnline }) => 
 
       // Clean text from Markdown symbols for cleaner speech
       utterance.text = text.replace(/[*#_`]/g, '');
+      utterance.onstart = () => {
+        setIsSpeaking(true);
+        setIsPaused(false);
+      };
+      utterance.onend = () => {
+        setIsSpeaking(false);
+        setIsPaused(false);
+        setActiveSpeechId(null);
+        utteranceRef.current = null;
+      };
+      utterance.onerror = () => {
+        setIsSpeaking(false);
+        setIsPaused(false);
+        setActiveSpeechId(null);
+        utteranceRef.current = null;
+      };
+
       window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  const pauseSpeech = () => {
+    if ('speechSynthesis' in window && window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+      window.speechSynthesis.pause();
+      setIsPaused(true);
+    }
+  };
+
+  const resumeSpeech = () => {
+    if ('speechSynthesis' in window && window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+      setIsPaused(false);
+    }
+  };
+
+  const stopSpeech = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      setIsPaused(false);
+      setActiveSpeechId(null);
+      utteranceRef.current = null;
     }
   };
 
@@ -326,13 +378,35 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ language, isOnline }) => 
                     {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                   {msg.role === 'model' && !msg.isError && (
-                    <button 
-                      onClick={() => speakText(msg.text)} 
-                      className="text-gray-400 hover:text-green-600 transition-colors p-1"
-                      title="Read Aloud (Lady Voice)"
-                    >
-                      <Volume2 size={14} />
-                    </button>
+                    <div className="flex items-center space-x-1">
+                      <button
+                        onClick={() => speakText(msg.text, msg.id)}
+                        className="text-gray-400 hover:text-green-600 transition-colors p-1"
+                        title="Read Aloud (Lady Voice)"
+                      >
+                        <Volume2 size={14} />
+                      </button>
+                      {(isSpeaking || isPaused) && activeSpeechId === msg.id && (
+                        <>
+                          <button
+                            onClick={isPaused ? resumeSpeech : pauseSpeech}
+                            disabled={!isSpeaking && !isPaused}
+                            className={`p-1 rounded transition-colors ${isPaused ? 'text-green-600 hover:text-green-700' : 'text-gray-400 hover:text-green-600 disabled:text-gray-300'}`}
+                            title={isPaused ? "Resume reading" : "Pause reading"}
+                          >
+                            {isPaused ? <Play size={14} /> : <Pause size={14} />}
+                          </button>
+                          <button
+                            onClick={stopSpeech}
+                            disabled={!isSpeaking && !isPaused}
+                            className="p-1 rounded text-gray-400 hover:text-red-600 transition-colors disabled:text-gray-300"
+                            title="Stop reading"
+                          >
+                            <Square size={14} />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
