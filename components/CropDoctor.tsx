@@ -269,22 +269,42 @@ const CropDoctor: React.FC<CropDoctorProps> = ({ language, isOnline }) => {
                   {isOnline ? (
                     <>
                       <Camera className="w-12 h-12 text-green-500 mx-auto mb-4" />
-                      <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        onChange={handleFileChange}
-                        ref={fileInputRef}
-                        className="hidden"
-                        id="camera-input"
-                      />
-                      <label
-                        htmlFor="camera-input"
-                        className="bg-green-600 text-white px-6 py-3 rounded-full font-medium shadow-lg active:scale-95 transition-transform cursor-pointer inline-flex items-center"
-                      >
-                        <Upload className="w-4 h-4 mr-2" />
-                        Select Image
-                      </label>
+                      <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                        <div>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={handleFileChange}
+                            ref={fileInputRef}
+                            className="hidden"
+                            id="camera-input"
+                          />
+                          <label
+                            htmlFor="camera-input"
+                            className="bg-green-600 text-white px-6 py-3 rounded-full font-medium shadow-lg active:scale-95 transition-transform cursor-pointer inline-flex items-center"
+                          >
+                            <Upload className="w-4 h-4 mr-2" />
+                            Take Photo
+                          </label>
+                        </div>
+                        <div>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFileChange}
+                            className="hidden"
+                            id="gallery-input"
+                          />
+                          <label
+                            htmlFor="gallery-input"
+                            className="bg-white text-green-700 px-6 py-3 rounded-full font-medium shadow border border-green-200 hover:bg-green-50 active:scale-95 transition-transform cursor-pointer inline-flex items-center"
+                          >
+                            <Upload className="w-4 h-4 mr-2" />
+                            Upload from Gallery
+                          </label>
+                        </div>
+                      </div>
                     </>
                   ) : (
                     <>
