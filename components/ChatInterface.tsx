@@ -1,15 +1,18 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, Loader2, WifiOff, Mic, MicOff, Image as ImageIcon, Volume2, Search, X, Pause, Play, Square } from 'lucide-react';
+import { Session } from '@supabase/supabase-js';
 import { ChatMessage, Language } from '../types';
 import { sendChatMessage, generateFarmingVisual } from '../services/geminiService';
+import { supabase } from '../services/supabaseClient';
 
 interface ChatInterfaceProps {
   language: Language;
   isOnline: boolean;
+  session: Session | null;
 }
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({ language, isOnline }) => {
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ language, isOnline, session }) => {
   const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
   const proxyUrl =
     env.VITE_GEMINI_PROXY_URL ??
@@ -26,6 +29,26 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ language, isOnline }) => 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const persistChat = async (payload: ChatMessage[], topic: string = 'pest') => {
+    if (!session?.user?.id) return;
+    try {
+      await supabase.from('chat_history').insert({
+        user_id: session.user.id,
+        language,
+        messages: payload.map((m) => ({
+          role: m.role,
+          text: m.text,
+          imageUrl: m.imageUrl ?? null,
+          timestamp: m.timestamp.toISOString(),
+          isError: m.isError ?? false,
+        })),
+        topic,
+        created_at: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.warn('Failed to persist chat history', error);
+    }
+  };
 
   // Load voices on mount
   useEffect(() => {
@@ -175,7 +198,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ language, isOnline }) => 
       timestamp: new Date()
     };
 
-    setMessages(prev => [...prev, userMsg]);
+    const baseMessages = [...messages, userMsg];
+    setMessages(baseMessages);
     setInput('');
     setSearchTerm(''); // Clear search to show new message
     setIsLoading(true);
@@ -191,10 +215,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ language, isOnline }) => 
           imageUrl: imageUrl,
           timestamp: new Date()
         };
-        setMessages(prev => [...prev, botMsg]);
+        const updated = [...baseMessages, botMsg];
+        setMessages(updated);
+        void persistChat(updated, 'visual');
       } else {
         // Standard Chat Mode
-        const history = messages.map(m => ({
+        const history = baseMessages.map(m => ({
           role: m.role,
           parts: [{ text: m.text }]
         }));
@@ -207,7 +233,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ language, isOnline }) => 
           text: responseText,
           timestamp: new Date()
         };
-        setMessages(prev => [...prev, botMsg]);
+        const updated = [...baseMessages, botMsg];
+        setMessages(updated);
+        void persistChat(updated, 'chat');
       }
     } catch (error) {
       const errorMsg: ChatMessage = {

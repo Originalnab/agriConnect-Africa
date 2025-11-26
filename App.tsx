@@ -184,7 +184,7 @@ const App: React.FC = () => {
 
         const { data, error } = await supabase
           .from('users')
-          .select('user_role, two_factor_enabled, user_profiles ( user_id )')
+          .select('user_role, two_factor_enabled')
           .eq('id', session.user.id)
           .single();
 
@@ -194,22 +194,10 @@ const App: React.FC = () => {
 
         if (isMounted) {
           const rawRole = data?.user_role ?? 'pending';
-          const profileRows = Array.isArray((data as any)?.user_profiles)
-            ? (data as any).user_profiles
-            : [];
-          const profile = profileRows.length ? profileRows[0] : null;
-
-          // If a role is explicitly set, honor it and send user to their home.
           if (rawRole === 'farmer' || rawRole === 'buyer' || rawRole === 'admin') {
             setUserRole(rawRole);
           } else {
-            // If role missing but profile exists, infer role once to avoid looping on onboarding.
-            const inferredRole: UserRole = profile
-              ? (profile as any).farm_name
-                ? 'farmer'
-                : 'buyer'
-              : 'pending';
-            setUserRole(profile ? inferredRole : 'pending');
+            setUserRole('pending');
           }
           setHasTwoFactorEnabled(Boolean(data?.two_factor_enabled));
           setRoleError(null);
@@ -258,9 +246,9 @@ const App: React.FC = () => {
       case ViewState.DASHBOARD:
         return <Dashboard language={language} setLanguage={setLanguage} isOnline={isOnline} />;
       case ViewState.CHAT:
-        return <ChatInterface language={language} isOnline={isOnline} />;
+        return <ChatInterface language={language} isOnline={isOnline} session={session} />;
       case ViewState.DOCTOR:
-        return <CropDoctor language={language} isOnline={isOnline} />;
+        return <CropDoctor language={language} isOnline={isOnline} session={session} />;
       case ViewState.MARKET:
         return <MarketView language={language} isOnline={isOnline} />;
       case ViewState.FARMER_HOME:
@@ -332,7 +320,7 @@ const App: React.FC = () => {
     );
   }
 
-  if (session && userRole === 'pending' && !isAdminSession) {
+  if (session && userRole === 'pending' && !isRoleLoading && !roleError && !isAdminSession) {
     return <OnboardingPage onComplete={() => setRoleRefreshToken((prev) => prev + 1)} />;
   }
 

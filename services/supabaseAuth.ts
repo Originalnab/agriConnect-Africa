@@ -68,13 +68,14 @@ const buildRedirectTo = () => {
     window.location.hostname === '127.0.0.1' ||
     window.location.hostname.endsWith('.local');
 
-  // Prefer the live page origin when running locally so Google/Supabase send us back to the dev server.
+  // If running locally, always use the current origin (and preserve path) so auth returns to the dev server.
   if (isLocal) {
     const localUrl = new URL(window.location.href);
     localUrl.hash = '';
     return localUrl.toString();
   }
 
+  // Non-local: fall back to configured site URL if provided, else current origin/path.
   if (configured) return configured;
 
   const url = new URL(window.location.href);

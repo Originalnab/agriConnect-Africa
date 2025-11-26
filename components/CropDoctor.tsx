@@ -3,15 +3,18 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Camera, Upload, Loader2, CheckCircle, AlertCircle, X, WifiOff, BookOpen, Sprout, Bug, Calendar, Sun, Search, ArrowRight, Droplet, HeartHandshake, StickyNote, RotateCw, ChevronRight, ExternalLink } from 'lucide-react';
 import { analyzeCropHealth, getCropDetails, getCropRotationAdvice } from '../services/geminiService';
 import { Language, CropInfo, AnalysisResult, RotationAdvice } from '../types';
+import { Session } from '@supabase/supabase-js';
+import { supabase } from '../services/supabaseClient';
 
 interface CropDoctorProps {
   language: Language;
   isOnline: boolean;
+  session: Session | null;
 }
 
 type DoctorView = 'DIAGNOSE' | 'LIBRARY' | 'ROTATION';
 
-const CropDoctor: React.FC<CropDoctorProps> = ({ language, isOnline }) => {
+const CropDoctor: React.FC<CropDoctorProps> = ({ language, isOnline, session }) => {
   const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
   const proxyUrl =
     env.VITE_GEMINI_PROXY_URL ??
@@ -43,6 +46,33 @@ const CropDoctor: React.FC<CropDoctorProps> = ({ language, isOnline }) => {
   const [rotationHistory, setRotationHistory] = useState<string[]>([]);
   const [rotationAdvice, setRotationAdvice] = useState<RotationAdvice | null>(null);
   const [loadingRotation, setLoadingRotation] = useState(false);
+  const saveAnalysis = async (result: AnalysisResult) => {
+    if (!session?.user?.id) return;
+    const cropId = crypto.randomUUID();
+    try {
+      await supabase.from('crops').upsert({
+        id: cropId,
+        user_id: session.user.id,
+        crop_name: result.cropName || 'Unknown crop',
+        status: 'growing',
+        planting_date: new Date().toISOString(),
+      });
+
+      await supabase.from('crop_analysis').insert({
+        crop_id: cropId,
+        user_id: session.user.id,
+        crop_identified: result.cropName || 'Unknown crop',
+        diagnosis: result.diagnosis,
+        health_status: result.issues?.length ? 'degraded' : 'healthy',
+        issues: result.issues || [],
+        treatments: result.treatment || [],
+        confidence_level: 0.65,
+        created_at: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.warn('Failed to persist crop analysis', error);
+    }
+  };
 
   const commonCrops = [
     'Maize', 'Cocoa', 'Cassava', 'Yam', 
@@ -76,6 +106,7 @@ const CropDoctor: React.FC<CropDoctorProps> = ({ language, isOnline }) => {
     try {
       const result = await analyzeCropHealth(base64Data, language);
       setAnalysis(result);
+      void saveAnalysis(result);
     } catch (error) {
       console.error(error);
       // Fallback error state handled in UI

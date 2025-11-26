@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -19,66 +19,156 @@ import {
   UploadCloud,
   Users,
 } from 'lucide-react';
+import { supabase } from '../services/supabaseClient';
 
-const kpis = [
-  { label: 'Farmers', value: '12,430', delta: '+4.2% vs last week', icon: Users, tone: 'text-emerald-700 bg-emerald-50' },
-  { label: 'Buyers', value: '3,112', delta: '+2.1% vs last week', icon: Globe2, tone: 'text-blue-700 bg-blue-50' },
-  { label: 'Active Chats', value: '842', delta: '92% SLA hit', icon: Headphones, tone: 'text-amber-700 bg-amber-50' },
-  { label: 'Open Alerts', value: '18', delta: '5 critical', icon: AlertTriangle, tone: 'text-rose-700 bg-rose-50' },
-];
-
-const operations = [
-  {
-    title: 'Regional Signals',
-    description: 'Live pest/weather overlays by district',
-    items: [
-      { title: 'Ashanti', detail: 'High pest risk - cassava', status: 'critical' },
-      { title: 'Volta', detail: 'Heavy rain in 36h - adjust planting', status: 'warning' },
-      { title: 'Greater Accra', detail: 'Market demand spike for tomatoes', status: 'info' },
-    ],
-  },
-  {
-    title: 'Marketplace SLA',
-    description: 'Time to first response on buyer requests',
-    items: [
-      { title: '< 15 min', detail: '68% of requests', status: 'good' },
-      { title: '15-60 min', detail: '22% of requests', status: 'warn' },
-      { title: '> 60 min', detail: '10% of requests', status: 'critical' },
-    ],
-  },
-];
-
-const aiQualityQueue = [
-  { prompt: '“Maize leaves turning yellow — why?”', status: 'Needs review', confidence: '62%', type: 'AI Farm Coach' },
-  { prompt: 'Uploaded cassava leaf photo', status: 'Low confidence', confidence: '55%', type: 'Crop Doctor' },
-  { prompt: '“When to plant rice in Northern Region?”', status: 'OK', confidence: '88%', type: 'Guidance' },
-];
-
-const systemHealth = [
-  { label: 'Chat API', status: 'Operational', latency: '290 ms', uptime: '99.9%', icon: MessageIcon },
-  { label: 'Vision/Doctor', status: 'Degraded', latency: '780 ms', uptime: '98.7%', icon: Sparkles },
-  { label: 'Marketplace', status: 'Operational', latency: '180 ms', uptime: '99.8%', icon: BarChart3 },
-  { label: 'Storage/Uploads', status: 'Operational', latency: '145 ms', uptime: '99.9%', icon: UploadCloud },
-];
-
-const localization = {
-  coverage: [
-    { locale: 'Twi', percent: 86 },
-    { locale: 'Ewe', percent: 74 },
-    { locale: 'Ga', percent: 68 },
-  ],
-  voice: [
-    { label: 'TTS success', value: '97%' },
-    { label: 'Voice input errors', value: '1.8%' },
-    { label: 'Avg. latency', value: '420 ms' },
-  ],
-};
+type KPI = { label: string; value: string; delta: string; icon: React.ComponentType<any>; tone: string };
+type PestItem = { id: string; location: string | null; risk_level: string | null; alert_message: string | null; forecast_date: string | null };
+type MarketItem = { id: string; crop_name: string | null; location: string | null; price: number | null; currency: string | null; unit: string | null; updated_at: string | null };
+type AnalysisItem = { id: string; crop_identified: string | null; diagnosis: string | null; health_status: string | null; confidence_level: number | null; created_at: string | null };
+type Stats = { farmers: number; buyers: number; chats24h: number; highRiskAlerts: number; listings: number };
 
 function MessageIcon(props: React.SVGProps<SVGSVGElement>) {
   return <Signal {...props} />;
 }
 
 const AdminDashboard: React.FC = () => {
+  const [stats, setStats] = useState<Stats>({
+    farmers: 0,
+    buyers: 0,
+    chats24h: 0,
+    highRiskAlerts: 0,
+    listings: 0,
+  });
+  const [pestItems, setPestItems] = useState<PestItem[]>([]);
+  const [marketItems, setMarketItems] = useState<MarketItem[]>([]);
+  const [analysisQueue, setAnalysisQueue] = useState<AnalysisItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+      const [
+        farmersRes,
+        buyersRes,
+        chatsRes,
+        alertsRes,
+        listingsRes,
+        pestRes,
+        marketRes,
+        analysisRes,
+      ] = await Promise.all([
+        supabase.from('users').select('id', { count: 'exact', head: true }).eq('user_role', 'farmer'),
+        supabase.from('users').select('id', { count: 'exact', head: true }).eq('user_role', 'buyer'),
+        supabase
+          .from('chat_history')
+          .select('id', { count: 'exact', head: true })
+          .gte('created_at', twentyFourHoursAgo),
+        supabase.from('pest_forecast').select('id', { count: 'exact', head: true }).eq('risk_level', 'High'),
+        supabase.from('market_data').select('id', { count: 'exact', head: true }),
+        supabase
+          .from('pest_forecast')
+          .select('id, location, risk_level, alert_message, forecast_date')
+          .order('forecast_date', { ascending: false })
+          .limit(5),
+        supabase
+          .from('market_data')
+          .select('id, crop_name, location, price, currency, unit, updated_at')
+          .order('updated_at', { ascending: false })
+          .limit(5),
+        supabase
+          .from('crop_analysis')
+          .select('id, crop_identified, diagnosis, health_status, confidence_level, created_at')
+          .order('created_at', { ascending: false })
+          .limit(5),
+      ]);
+
+      const farmers = farmersRes.count ?? 0;
+      const buyers = buyersRes.count ?? 0;
+      const chats24h = chatsRes.count ?? 0;
+      const highRiskAlerts = alertsRes.count ?? 0;
+      const listings = listingsRes.count ?? 0;
+
+      setStats({ farmers, buyers, chats24h, highRiskAlerts, listings });
+      setPestItems(pestRes.data ?? []);
+      setMarketItems(marketRes.data ?? []);
+      setAnalysisQueue(analysisRes.data ?? []);
+      setLastUpdated(new Date().toLocaleString());
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Unable to load admin data.';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchData();
+  }, [fetchData]);
+
+  const kpis: KPI[] = useMemo(
+    () => [
+      { label: 'Farmers', value: stats.farmers.toLocaleString(), delta: 'vs total users', icon: Users, tone: 'text-emerald-700 bg-emerald-50' },
+      { label: 'Buyers', value: stats.buyers.toLocaleString(), delta: 'vs total users', icon: Globe2, tone: 'text-blue-700 bg-blue-50' },
+      { label: 'Chats (24h)', value: stats.chats24h.toLocaleString(), delta: 'Last 24h', icon: Headphones, tone: 'text-amber-700 bg-amber-50' },
+      { label: 'High-risk alerts', value: stats.highRiskAlerts.toLocaleString(), delta: 'Pest forecast = High', icon: AlertTriangle, tone: 'text-rose-700 bg-rose-50' },
+    ],
+    [stats],
+  );
+
+  const operations = useMemo(
+    () => [
+      {
+        title: 'Pest Signals',
+        description: 'Highest risk from pest_forecast',
+        items: (pestItems.length ? pestItems : [{ id: 'fallback', location: 'N/A', alert_message: 'No pest data yet', risk_level: 'info', forecast_date: null }]).map(
+          (item) => ({
+            title: item.location || 'Unknown location',
+            detail: item.alert_message || 'No alert message',
+            status: item.risk_level === 'High' ? 'critical' : item.risk_level === 'Medium' ? 'warning' : 'info',
+          }),
+        ),
+      },
+      {
+        title: 'Marketplace Activity',
+        description: 'Latest market_data rows',
+        items: (marketItems.length
+          ? marketItems
+          : [{ id: 'fallback', crop_name: 'N/A', location: 'N/A', price: null, currency: null, unit: null, updated_at: null }]
+        ).map((item) => ({
+          title: item.crop_name || 'Unknown crop',
+          detail: `${item.location || 'Unknown location'} ${item.price ? `• ${item.price} ${item.currency || ''}/${item.unit || ''}` : ''}`.trim(),
+          status: 'good',
+        })),
+      },
+    ],
+    [marketItems, pestItems],
+  );
+
+  const systemHealth = [
+    { label: 'Chat API', status: 'Operational', latency: '290 ms', uptime: '99.9%', icon: MessageIcon },
+    { label: 'Vision/Doctor', status: 'Degraded', latency: '780 ms', uptime: '98.7%', icon: Sparkles },
+    { label: 'Marketplace', status: 'Operational', latency: '180 ms', uptime: '99.8%', icon: BarChart3 },
+    { label: 'Storage/Uploads', status: 'Operational', latency: '145 ms', uptime: '99.9%', icon: UploadCloud },
+  ];
+
+  const localization = {
+    coverage: [
+      { locale: 'Twi', percent: 86 },
+      { locale: 'Ewe', percent: 74 },
+      { locale: 'Ga', percent: 68 },
+    ],
+    voice: [
+      { label: 'TTS success', value: '97%' },
+      { label: 'Voice input errors', value: '1.8%' },
+      { label: 'Avg. latency', value: '420 ms' },
+    ],
+  };
+
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-stone-50 via-white to-emerald-50 text-stone-900">
       <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
@@ -92,18 +182,32 @@ const AdminDashboard: React.FC = () => {
             <p className="text-sm text-stone-600 mt-1">
               Full-screen oversight of users, AI quality, marketplace health, and alerts — optimized for laptops and responsive down to mobile.
             </p>
+            {lastUpdated && <p className="text-xs text-stone-500 mt-1">Last updated: {lastUpdated}</p>}
           </div>
           <div className="flex flex-wrap gap-2">
-            <button className="inline-flex items-center gap-2 rounded-full bg-emerald-600 text-white px-4 py-2 text-sm font-semibold shadow hover:bg-emerald-700 transition">
+            <button
+              onClick={fetchData}
+              className="inline-flex items-center gap-2 rounded-full bg-emerald-600 text-white px-4 py-2 text-sm font-semibold shadow hover:bg-emerald-700 transition disabled:opacity-60"
+              disabled={loading}
+            >
               <Sparkles className="h-4 w-4" />
-              Smart Refresh
+              {loading ? 'Refreshing…' : 'Smart Refresh'}
             </button>
-            <button className="inline-flex items-center gap-2 rounded-full border border-stone-200 px-4 py-2 text-sm font-semibold text-stone-700 bg-white hover:border-stone-300 transition">
+            <button
+              onClick={fetchData}
+              className="inline-flex items-center gap-2 rounded-full border border-stone-200 px-4 py-2 text-sm font-semibold text-stone-700 bg-white hover:border-stone-300 transition disabled:opacity-60"
+              disabled={loading}
+            >
               <RefreshCw className="h-4 w-4" />
               Live View
             </button>
           </div>
         </header>
+        {error && (
+          <div className="rounded-lg border border-rose-200 bg-rose-50 text-rose-700 text-sm px-4 py-3">
+            {error} — ensure admin RLS policies allow reads for this account.
+          </div>
+        )}
 
         <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {kpis.map((kpi) => (
@@ -113,7 +217,9 @@ const AdminDashboard: React.FC = () => {
             >
               <div>
                 <p className="text-sm text-stone-500">{kpi.label}</p>
-                <p className="text-2xl font-semibold text-stone-900 mt-1">{kpi.value}</p>
+                <p className="text-2xl font-semibold text-stone-900 mt-1">
+                  {loading ? <span className="animate-pulse text-stone-400">...</span> : kpi.value}
+                </p>
                 <p className="text-xs text-stone-500 mt-1">{kpi.delta}</p>
               </div>
               <div className={`rounded-full p-3 ${kpi.tone}`}>
@@ -170,19 +276,21 @@ const AdminDashboard: React.FC = () => {
               <Sparkles className="h-5 w-5 text-stone-400" />
             </div>
             <div className="space-y-3">
-              {aiQualityQueue.map((item, idx) => (
-                <div key={item.prompt + idx} className="rounded-xl border border-stone-200 bg-stone-50/80 p-4 space-y-2">
+              {(analysisQueue.length ? analysisQueue : [{ id: 'fallback', crop_identified: 'No analyses yet', diagnosis: '', health_status: 'N/A', confidence_level: null, created_at: null }]).map((item) => (
+                <div key={item.id} className="rounded-xl border border-stone-200 bg-stone-50/80 p-4 space-y-2">
                   <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700">
                     <Sparkles className="h-4 w-4" />
-                    {item.type}
+                    {item.crop_identified || 'Crop Doctor'}
                   </div>
-                  <p className="text-sm text-stone-900">{item.prompt}</p>
+                  <p className="text-sm text-stone-900">{item.diagnosis || 'No diagnosis provided'}</p>
                   <div className="flex items-center justify-between text-xs text-stone-600">
                     <span className="flex items-center gap-2">
-                      <Badge tone={item.status === 'OK' ? 'emerald' : 'amber'}>{item.status}</Badge>
-                      <span className="text-stone-500">Confidence {item.confidence}</span>
+                      <Badge tone={item.health_status === 'healthy' ? 'emerald' : 'amber'}>{item.health_status || 'Pending'}</Badge>
+                      <span className="text-stone-500">
+                        Confidence {item.confidence_level ? `${Math.round(item.confidence_level * 100)}%` : '—'}
+                      </span>
                     </span>
-                    <button className="text-emerald-700 font-semibold hover:underline text-xs">Mark reviewed</button>
+                    <span className="text-stone-500">{item.created_at ? new Date(item.created_at).toLocaleDateString() : ''}</span>
                   </div>
                 </div>
               ))}
@@ -203,14 +311,14 @@ const AdminDashboard: React.FC = () => {
               <div className="flex items-center justify-between rounded-xl border border-stone-200 px-4 py-3 bg-stone-50/80">
                 <div>
                   <p className="text-sm font-semibold text-stone-900">Moderation queue</p>
-                  <p className="text-xs text-stone-500">12 new listings need review</p>
+                  <p className="text-xs text-stone-500">{loading ? 'Loading...' : `${stats.listings} listings recorded`}</p>
                 </div>
                 <Badge tone="emerald">Real-time</Badge>
               </div>
               <div className="flex items-center justify-between rounded-xl border border-stone-200 px-4 py-3 bg-stone-50/80">
                 <div>
                   <p className="text-sm font-semibold text-stone-900">Pricing anomalies</p>
-                  <p className="text-xs text-stone-500">4 items &gt; 30% above median</p>
+                  <p className="text-xs text-stone-500">Flag via analytics (not yet wired)</p>
                 </div>
                 <Badge tone="amber">Investigate</Badge>
               </div>
