@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Home, MessageCircle, Camera, TrendingUp, ShoppingBag } from 'lucide-react';
+import { Home, MessageCircle, Camera, TrendingUp, ShoppingBag, LayoutDashboard } from 'lucide-react';
 import { ViewState, Language, UserRole } from '../types';
 
 interface NavigationProps {
@@ -39,8 +39,16 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, setView, language,
     { id: ViewState.CHAT, label: t.chat, icon: MessageCircle },
   ];
 
+  const adminNav = [{ id: ViewState.ADMIN_DASHBOARD, label: 'Admin', icon: LayoutDashboard }];
+
   const navItems =
-    userRole === 'farmer' ? farmerNav : userRole === 'buyer' ? buyerNav : defaultNav;
+    userRole === 'farmer'
+      ? farmerNav
+      : userRole === 'buyer'
+        ? buyerNav
+        : userRole === 'admin'
+          ? adminNav
+          : defaultNav;
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 pointer-events-none">

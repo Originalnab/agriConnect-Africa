@@ -7,9 +7,60 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+      :root {
+        --bg-surface: #f5f5f4;
+        --bg-panel: #ffffff;
+        --bg-muted: #f3f4f6;
+        --text-primary: #1f2937;
+        --text-secondary: #4b5563;
+        --text-tertiary: #6b7280;
+        --border-subtle: #e5e7eb;
+      }
+      :root[data-theme='dark'] {
+        --bg-surface: #0b1220;
+        --bg-panel: #0f172a;
+        --bg-muted: #111827;
+        --text-primary: #f8fafc;
+        --text-secondary: #e2e8f0;
+        --text-tertiary: #cbd5e1;
+        --border-subtle: #1f2937;
+        color-scheme: dark;
+      }
       body {
         font-family: 'Inter', sans-serif;
-        background-color: #f5f5f4; /* Stone-100 */
+        background-color: var(--bg-surface);
+        color: var(--text-primary);
+      }
+      /* Utility overrides for dark mode without editing every component */
+      [data-theme='dark'] .bg-white,
+      [data-theme='dark'] .bg-white\/90 {
+        background-color: var(--bg-panel) !important;
+      }
+      [data-theme='dark'] .bg-stone-50,
+      [data-theme='dark'] .bg-stone-50\/80 {
+        background-color: var(--bg-muted) !important;
+      }
+      [data-theme='dark'] .border-stone-200 {
+        border-color: var(--border-subtle) !important;
+      }
+      [data-theme='dark'] .text-stone-900 {
+        color: var(--text-primary) !important;
+      }
+      [data-theme='dark'] .text-stone-700,
+      [data-theme='dark'] .text-stone-600 {
+        color: var(--text-secondary) !important;
+      }
+      [data-theme='dark'] .text-stone-500,
+      [data-theme='dark'] .text-stone-400 {
+        color: var(--text-tertiary) !important;
+      }
+      [data-theme='dark'] .shadow-2xl,
+      [data-theme='dark'] .shadow-lg,
+      [data-theme='dark'] .shadow-sm {
+        box-shadow: 0 12px 35px rgba(0, 0, 0, 0.45);
+      }
+      body {
+        font-family: 'Inter', sans-serif;
       }
       /* Hide scrollbar for clean UI */
       .no-scrollbar::-webkit-scrollbar {
@@ -19,7 +70,15 @@
         -ms-overflow-style: none;
         scrollbar-width: none;
       }
-    </style>
+</style>
+<script>
+  (() => {
+    const stored = localStorage.getItem('agriconnect-theme');
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const theme = stored || (prefersDark ? 'dark' : 'light');
+    document.documentElement.dataset.theme = theme;
+  })();
+</script>
   <script type="importmap">
 {
   "imports": {

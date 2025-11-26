@@ -61,8 +61,22 @@ let currentSession: SupabaseAuthSession | null = null;
 
 const buildRedirectTo = () => {
   const configured = import.meta.env.VITE_SITE_URL as string | undefined;
+  if (typeof window === 'undefined') return configured;
+
+  const isLocal =
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.endsWith('.local');
+
+  // Prefer the live page origin when running locally so Google/Supabase send us back to the dev server.
+  if (isLocal) {
+    const localUrl = new URL(window.location.href);
+    localUrl.hash = '';
+    return localUrl.toString();
+  }
+
   if (configured) return configured;
-  if (typeof window === 'undefined') return undefined;
+
   const url = new URL(window.location.href);
   url.hash = '';
   return url.toString();

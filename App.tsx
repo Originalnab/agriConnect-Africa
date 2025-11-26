@@ -7,6 +7,7 @@ import CropDoctor from './components/CropDoctor';
 import MarketView from './components/MarketView';
 import AuthForm from './components/AuthForm';
 import UserAccount from './components/UserAccount';
+import AdminDashboard from './components/AdminDashboard';
 import FarmerHome from './components/FarmerHome';
 import BuyerMarketplace from './components/BuyerMarketplace';
 import TwoFactorVerification from './components/TwoFactorVerification';
@@ -15,16 +16,22 @@ import { supabase } from './services/supabaseClient';
 import supabaseAuth from './services/supabaseAuth';
 import { Session } from '@supabase/supabase-js';
 import { enable2FA } from './services/twoFactorAuth';
-import { WifiOff } from 'lucide-react';
+import { WifiOff, Moon, Sun } from 'lucide-react';
 import appLogo from './components/Assests/AgriConnnect.png';
 
 // Temporary flag to bypass 2FA while keeping the implementation intact.
 const SUSPEND_TWO_FACTOR = true;
+const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
+const ADMIN_EMAILS: string[] = (env.VITE_ADMIN_EMAILS ?? '')
+  .split(',')
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
 
 const allowedViewsByRole: Record<UserRole, ViewState[]> = {
   farmer: [ViewState.DASHBOARD, ViewState.CHAT, ViewState.DOCTOR, ViewState.MARKET],
   buyer: [ViewState.BUYER_MARKETPLACE, ViewState.CHAT],
   pending: [ViewState.DASHBOARD, ViewState.CHAT, ViewState.DOCTOR, ViewState.MARKET],
+  admin: [ViewState.ADMIN_DASHBOARD],
 };
 
 const App: React.FC = () => {
@@ -39,8 +46,31 @@ const App: React.FC = () => {
   const [roleRefreshToken, setRoleRefreshToken] = useState(0);
   const [hasTwoFactorEnabled, setHasTwoFactorEnabled] = useState<boolean>(false);
   const [isTwoFactorVerified, setIsTwoFactorVerified] = useState<boolean>(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof document === 'undefined') return 'light';
+    const dataTheme = document.documentElement.dataset.theme;
+    if (dataTheme === 'dark' || dataTheme === 'light') return dataTheme;
+    return 'light';
+  });
   const sessionIdRef = useRef<string | null>(null);
   const isValidatingSessionRef = useRef(false);
+  const isAdminEmail = (email?: string | null) =>
+    !!email && ADMIN_EMAILS.includes(email.toLowerCase());
+  const isAdminSession = isAdminEmail(session?.user?.email) || userRole === 'admin';
+  const toggleTheme = () => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.dataset.theme = theme;
+      localStorage.setItem('agriconnect-theme', theme);
+    }
+  }, [theme]);
+
+  useEffect(() => {
+    if (!session && theme !== 'light') {
+      setTheme('light');
+    }
+  }, [session, theme]);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -90,7 +120,7 @@ const App: React.FC = () => {
       sessionIdRef.current = null;
       setIsTwoFactorVerified(false);
     }
-  }, [session]);
+  }, [session, isAdminEmail]);
 
   useEffect(() => {
     if (SUSPEND_TWO_FACTOR && session) {
@@ -120,6 +150,16 @@ const App: React.FC = () => {
     void validateSession();
   }, [isAuthReady, session]);
 
+  // Fast-path: if the signed-in email is an admin email, set role and force admin view.
+  useEffect(() => {
+    if (session && isAdminSession) {
+      setUserRole('admin');
+      setIsRoleLoading(false);
+      setRoleError(null);
+      setCurrentView(ViewState.ADMIN_DASHBOARD);
+    }
+  }, [session, isAdminSession]);
+
   useEffect(() => {
     let isMounted = true;
     if (!session) {
@@ -135,6 +175,13 @@ const App: React.FC = () => {
     const fetchUserRole = async () => {
       setIsRoleLoading(true);
       try {
+        if (isAdminSession) {
+          setUserRole('admin');
+          setRoleError(null);
+          setIsRoleLoading(false);
+          return;
+        }
+
         const { data, error } = await supabase
           .from('users')
           .select('user_role, two_factor_enabled, user_profiles ( user_id )')
@@ -153,7 +200,7 @@ const App: React.FC = () => {
           const profile = profileRows.length ? profileRows[0] : null;
 
           // If a role is explicitly set, honor it and send user to their home.
-          if (rawRole === 'farmer' || rawRole === 'buyer') {
+          if (rawRole === 'farmer' || rawRole === 'buyer' || rawRole === 'admin') {
             setUserRole(rawRole);
           } else {
             // If role missing but profile exists, infer role once to avoid looping on onboarding.
@@ -200,6 +247,12 @@ const App: React.FC = () => {
     });
   }, [userRole]);
 
+  useEffect(() => {
+    if (isAdminSession) {
+      setCurrentView(ViewState.ADMIN_DASHBOARD);
+    }
+  }, [isAdminSession]);
+
   const renderView = () => {
     switch (currentView) {
       case ViewState.DASHBOARD:
@@ -214,10 +267,17 @@ const App: React.FC = () => {
         return <FarmerHome />;
       case ViewState.BUYER_MARKETPLACE:
         return <BuyerMarketplace language={language} isOnline={isOnline} />;
+      case ViewState.ADMIN_DASHBOARD:
+        return <AdminDashboard />;
       default:
         return <Dashboard language={language} setLanguage={setLanguage} isOnline={isOnline} />;
     }
   };
+
+  const isAdminView = currentView === ViewState.ADMIN_DASHBOARD;
+  const containerClass = isAdminView
+    ? 'min-h-screen bg-stone-50 text-stone-900 flex flex-col font-sans'
+    : 'max-w-md mx-auto bg-stone-50 min-h-screen relative shadow-2xl shadow-stone-300 font-sans flex flex-col';
 
   if (!isAuthReady) {
     return (
@@ -272,12 +332,12 @@ const App: React.FC = () => {
     );
   }
 
-  if (session && userRole === 'pending') {
+  if (session && userRole === 'pending' && !isAdminSession) {
     return <OnboardingPage onComplete={() => setRoleRefreshToken((prev) => prev + 1)} />;
   }
 
   return (
-    <div className="max-w-md mx-auto bg-stone-50 min-h-screen relative shadow-2xl shadow-stone-300 font-sans flex flex-col">
+    <div className={containerClass}>
       {/* Header with Offline Indicator */}
       {!isOnline && (
         <div className="bg-stone-800 text-white text-xs py-1 px-4 text-center flex items-center justify-center sticky top-0 z-50">
@@ -300,14 +360,30 @@ const App: React.FC = () => {
       )}
 
       {/* Top Bar with Logo and User Account */}
-      <div className="bg-white border-b border-stone-200 px-4 py-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-3">
-            <img src={appLogo} alt="AgriConnect Africa logo" className="h-12 w-auto rounded-md border border-stone-200" />
-            <span className="text-xs text-stone-400">Powered by KasapaAi Digitals</span>
+      <div className="bg-white border-b border-stone-200">
+        <div
+          className={`px-4 py-3 flex items-center justify-between gap-3 ${
+            isAdminView ? 'max-w-7xl mx-auto w-full' : ''
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              <img src={appLogo} alt="AgriConnect Africa logo" className="h-12 w-auto rounded-md border border-stone-200" />
+              <span className="text-xs text-stone-400">Powered by KasapaAi Digitals</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-stone-200 bg-white text-xs font-semibold text-stone-700 hover:bg-stone-50"
+            >
+              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+              <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+            </button>
+            <UserAccount />
           </div>
         </div>
-        <UserAccount />
       </div>
 
       {/* Main Content */}
@@ -317,7 +393,14 @@ const App: React.FC = () => {
 
       <div className="bg-stone-50 text-[11px] text-stone-400 text-center py-2">Powered by Kasapa Ai Digitals</div>
       {/* Navigation */}
-      <Navigation currentView={currentView} setView={setCurrentView} language={language} userRole={userRole} />
+      {!isAdminView && (
+        <Navigation
+          currentView={currentView}
+          setView={setCurrentView}
+          language={language}
+          userRole={userRole}
+        />
+      )}
     </div>
   );
 };

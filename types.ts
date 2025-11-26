@@ -6,11 +6,12 @@ export enum ViewState {
   MARKET = 'MARKET',
   FARMER_HOME = 'FARMER_HOME',
   BUYER_MARKETPLACE = 'BUYER_MARKETPLACE',
+  ADMIN_DASHBOARD = 'ADMIN_DASHBOARD',
 }
 
 export type Language = 'en' | 'tw' | 'ee' | 'ga';
 
-export type UserRole = 'farmer' | 'buyer' | 'pending';
+export type UserRole = 'farmer' | 'buyer' | 'pending' | 'admin';
 
 export const SUPPORTED_LANGUAGES: { id: Language; label: string }[] = [
   { id: 'en', label: 'English' },
