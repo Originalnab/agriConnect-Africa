@@ -184,7 +184,7 @@ const App: React.FC = () => {
 
         const { data, error } = await supabase
           .from('users')
-          .select('user_role, two_factor_enabled')
+          .select('user_role')
           .eq('id', session.user.id)
           .single();
 
@@ -193,13 +193,21 @@ const App: React.FC = () => {
         }
 
         if (isMounted) {
-          const rawRole = data?.user_role ?? 'pending';
+          if (!data) {
+            setRoleError('No user profile found for this account.');
+            setUserRole('pending');
+            setHasTwoFactorEnabled(false);
+            return;
+          }
+
+          const rawRole = data.user_role ?? 'pending';
           if (rawRole === 'farmer' || rawRole === 'buyer' || rawRole === 'admin') {
             setUserRole(rawRole);
           } else {
             setUserRole('pending');
           }
-          setHasTwoFactorEnabled(Boolean(data?.two_factor_enabled));
+          // 2FA is suspended; keep false.
+          setHasTwoFactorEnabled(false);
           setRoleError(null);
         }
       } catch (error) {
@@ -280,6 +288,24 @@ const App: React.FC = () => {
 
   if (!session) {
     return <AuthForm />;
+  }
+
+  if (session && roleError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50 px-4">
+        <div className="max-w-md w-full bg-white border border-stone-200 rounded-2xl shadow-sm p-6 space-y-3 text-center">
+          <p className="text-sm font-semibold text-stone-900">Unable to load account role</p>
+          <p className="text-xs text-stone-500">{roleError}</p>
+          <button
+            type="button"
+            onClick={() => setRoleRefreshToken((prev) => prev + 1)}
+            className="mt-2 inline-flex items-center justify-center px-4 py-2 rounded-full bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (session && !isTwoFactorVerified && !SUSPEND_TWO_FACTOR) {
